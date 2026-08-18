@@ -1,0 +1,312 @@
+# Judgment native-port investigation
+
+## Current evidence
+
+The local Judgment debug build is not source-complete, but it is unusually useful for a
+native port investigation: it contains Xbox 360 executables plus PDB/XDB symbols and cooked
+UE3 packages. The local Gears 3 tree supplies the closest known PC-native engine/game source
+baseline.
+
+The package boundary is confirmed rather than hypothetical:
+
+| Input | Byte order | UE3 package version | Immediate consequence |
+| --- | --- | ---: | --- |
+| Judgment cooked `.xxx` | Xbox 360 big-endian | 845 in sampled debug files | byte-swap summary and serialized fields |
+| Judgment script `.u` | little-endian in sampled file | 845 | useful control sample |
+| Gears 3 PC package | little-endian | 828 | source-backed native baseline |
+
+Public reports of retail Judgment packages commonly show version 846. The local debug build
+is therefore its own version target; assuming retail layouts would be unsafe.
+
+The first complete local inventory produced these groups:
+
+- 1,277 big-endian version-845 packages with LZX chunk compression;
+- 1 big-endian uncompressed version-845 package;
+- 27 little-endian uncompressed version-845 packages;
+- 10 big-endian fully-compressed UE3 containers, including `GearGame.xxx`;
+- zero unrecognized package candidates out of 1,315 scanned.
+
+The comparison Jacinto PC `GearGame` tree also parsed all 2,876 candidates. Its dominant groups
+are 2,524 uncompressed and 312 LZO-compressed version-828 packages. This gives the converter a
+large source-backed control corpus for both ordinary and chunk-compressed UE3 packages.
+
+## Recommended native path
+
+1. Inventory and parse every package summary, grouping files by endian, version, compression,
+   and any summary-layout exceptions.
+2. ~~Add read-only Xbox LZX chunk decompression for both package chunks and fully-compressed
+   containers, then verify reconstructed bytes against UE3 table offsets and package invariants.~~
+   Completed for representative small, large, ordinary, and fully-compressed packages.
+3. Diff version 845 serialization against the Gears 3 version 828 source one object type at a
+   time, starting with names, imports, exports, bulk data, textures, meshes, and scripts. Name,
+   import, export, `Package`, `GuidCache`, `ObjectReferencer`, and `SoundNodeWave` framing are now
+   confirmed for the sampled corpus.
+4. Build an offline converter that emits PC-native packages accepted by the Gears 3 PC runtime.
+5. Only after content conversion is repeatable, port Judgment-specific native classes using
+   the PDB/XDB symbols as an interface map. Symbols aid reconstruction; they are not source.
+
+This is a native-data and native-code reconstruction route. Xenia or a runtime Xbox-to-PC
+instruction translator can remain a behavioral oracle for testing, but is not part of the
+shipping architecture.
+
+## First tool
+
+`package-probe` implements step 1 without altering any game files. Its output should be kept
+as the baseline manifest for later decompressor and converter tests.
+
+The ten fully-compressed startup containers use the `FArchive::SerializeCompressed` framing
+documented in the local Gears 3 source: package tag, compression chunk size, aggregate sizes,
+per-chunk size pairs, then payloads. Codec integration is complete in the probe.
+
+Ordinary packages require one additional reconstruction step. Their physical summary contains
+an `FCompressedChunk` table that makes it larger than the logical summary and overlaps the first
+logical compressed range. The tool now removes those 16-byte descriptors, writes a zero chunk
+count and compression flags, clears `PKG_StoreCompressed`, and places decoded ranges at their
+logical offsets. The resulting name-table offset exactly matches the shortened summary boundary.
+
+## First native v828 artifact
+
+`package-probe --convert-guid-cache` now emits the first complete native PC package fixture from
+Judgment content. `GuidCache.xxx` is unusually good for this purpose: it is already uncompressed,
+contains one export, and the Gears 3 PC source defines its entire native payload as
+`UObject::Serialize` followed by `TMap<FName, FGuid>`.
+
+The converter rewrites the full summary, name/import/export maps, dependency map, and 2,065 payload
+records from big- to little-endian; changes package version 845 to 828 and saved engine 9580 to the
+local PC value 8741; preserves cooked-content version 134; and strips Xbox alignment padding. The
+111,698-byte output independently reparses as little-endian v828 with exact table boundaries and a
+49,576-byte map payload containing zero invalid name references. A real Jacinto PC `GuidCache.upk`
+uses the same payload structure with 1,779 entries.
+
+This proves an offline native conversion is practical, but does not imply arbitrary asset payloads
+are compatible. It has also passed the actual Jacinto Win64 `PkgInfo` and `LoadPackage`
+commandlets. `LoadPackage` deserialized the converted `UGuidCache` and exited with zero errors and
+zero warnings. This is the first genuine native-runtime acceptance result.
+
+## First audio boundary
+
+The generic tagged-property scanner now handles the UE3 v845 property-tag framing used by the
+sampled `SoundNodeWave`, including struct, byte-enum, and version-dependent bool metadata. It then
+parses the four source-defined bulk slots in order: raw, PC, Xbox 360, and PS3. In Judgment
+`AID_COMMON_SF_LOC_INT`, the PC slot is empty and the Xbox slot contains exactly 10,304 inline
+bytes. In the Jacinto PC control `Human_Sam_Efforts.upk`, the Xbox slot is empty and the PC slot
+contains 5,070 bytes beginning with `OggS`. This demonstrates why sound needs transcoding rather
+than only endian conversion.
+
+The Xbox block matches the local `FXMAInfo` source exactly: three big-endian sizes followed by a
+52-byte `XMA2WAVEFORMATEX`, a zero-byte seek table, and 10,240 XMA packet bytes. The new
+`--extract-xma` command validates that structure and emits a conventional little-endian RIFF/XMA2
+file. An independent vgmstream decode produced 35,328 mono PCM samples at the embedded 22,056 Hz
+rate (1.602 seconds), with nonzero peak and RMS. Xbox audio extraction is therefore solved for
+this framing.
+
+The decoded PCM has now passed through a standalone implementation of the local
+`FPCSoundCooker::Cook` algorithm, linked against the exact Gears 3-era libogg/libvorbis binaries.
+At the default Unreal compression quality 40, it produced an 11,224-byte Ogg that independently
+decodes to the same 35,328-frame, mono 22,056 Hz stream.
+
+A deliberately narrow converter then produced a 16,754-byte little-endian v828 package. It converts
+all nine observed sound properties, including the Unicode `SpokenText`, ANSI translator comment,
+tagged `SubtitleCue` array, and all 15 tagged `LocalizedSubtitle` records. It replaces the Xbox bulk
+with PC Ogg bulk and endian-converts the surrounding `Package` and `ObjectReferencer` exports.
+Independent parsing reports exact table and payload boundaries with no invalid references. The
+actual Jacinto Win64 `PkgInfo` commandlet sees all four exports, and its `LoadPackage` commandlet
+deserializes the complete subtitle-preserving package with zero errors and zero warnings.
+
+The first game-mode attempt retained `PKG_RequireImportsAlreadyLoaded`, `PKG_FilterEditorOnly`, and
+`EF_ForcedExport` from the Xbox seek-free cook. Jacinto reached the wave but faulted when accessing
+its PC bulk-data member. Matching an ordinary PC audio package's `0x20080009` package flags and
+clearing the forced-export bits corrected the linker/archive behavior. The fixture also maps the
+source network index to `INDEX_NONE`, because the standalone PC package has no console network
+object table.
+
+This is now a native media decode and playback-queue result, not only a native load. Jacinto's unmodified
+`TestVorbisDecompressionSpeed` command loaded the aliased asset, initialized `CompressedPCData`, and
+ran the stock `FVorbisAudioInfo::ReadCompressedInfo`/`ExpandFile` path 1,000 times without error. A
+clean subtitle-preserving run reported `0.793673 ms` per decode and `0.495506 ms` per second per
+`PlaySoundWave` command also loaded the same Judgment-derived wave, produced one active wave
+instance, registered its transient audio component with the XAudio2 device, and logged the expected
+`C'mon… bring it!` subtitle (with the old logger reducing the ellipsis to `&`). There were no
+Vorbis, buffer-creation, or fatal errors. The full single-wave chain is now automated by a guarded
+PowerShell pipeline with SHA-256 provenance.
+
+## Complete multi-wave audio package
+
+The single-wave result now scales to a real package rather than a renamed fixture.
+`AIDE_215_SF_LOC_INT.xxx` reconstructs to a contiguous 246,189-byte package containing nine
+`Package` exports, one `ObjectReferencer`, and 18 `SoundNodeWave` exports. All 18 waves have valid
+inline Xbox bulk framing.
+
+The new batch pipeline extracts every XMA stream, decodes it with the retained vgmstream build,
+encodes it through the source-matched Gears 3 Vorbis path, and supplies the resulting Oggs to a
+package-wide converter. That converter endian-converts 129 tagged properties, replaces every Xbox
+bulk payload with PC bulk, clears seek-free network indices and forced-export flags, and rebuilds
+all 28 serial offsets and sizes. It deliberately rejects gaps, unknown export classes, unsupported
+properties, external bulk data, and missing replacement streams.
+
+The 292,782-byte result independently reparses as little-endian v828: all names/imports/exports are
+valid, all nine `Package` and the `ObjectReferencer` payloads close exactly, and all 18 sound
+payloads retain valid tagged-property and four-slot bulk framing. Most importantly, the unmodified
+Jacinto Win64 `LoadPackage` commandlet deserialized the complete package with zero errors and zero
+warnings. This completes multi-wave/package audio conversion. Texture bulk data is now the next
+high-value content boundary.
+
+## First texture boundary
+
+The probe now follows the complete source-defined `UTexture2D::Serialize` layout on both versions:
+tagged `UObject` properties, `SourceArt` bulk, the regular mip array, the texture-file-cache GUID,
+and cached PVRTC mips. It also records decoded scalar/name values for common property tags such as
+`SizeX`, `SizeY`, `Format`, `TextureFileCacheName`, `MipTailBaseIdx`, and
+`FirstResourceMemMip`.
+
+This layout closes exactly for all 967 `Texture2D` exports in the reconstructed Judgment
+`MP_Centennial` package (4,513 regular mip records), all 19 textures in
+`SP_00_Museum_Background_1_M`, and the sampled v828 PC controls. The corpus revealed a legitimate
+UE3 unused-streaming sentinel: flags `0x21` (`StoreInSeparateFile | Unused`) with element count 0,
+stored size -1, and offset -1. Real inline payloads still require an exact absolute offset and
+complete export-boundary closure.
+
+The regular Judgment mip flags in `MP_Centennial` split into 1,696 inline Xbox allocations
+(`0x00`), 1,075 LZX-compressed external TFC records (`0x81`), and 1,742 unused external sentinels
+(`0x21`). This means texture conversion must handle both package-resident allocations and the
+three Judgment TFC files; blindly copying only inline data would discard higher-resolution mips.
+
+Bulk extraction now supports uncompressed, Gears-source-matched LZO, and XMem/LZX wrappers. The
+first exact cross-platform asset oracle is `T_GT_Fir_Cluster_MASK`, which exists in Judgment's
+`SP_00_Museum_Background_1_M` and Gears 3 PC's `GOW_Forests.upk`. Judgment mip 2 is a 32x64 BC1
+surface occupying an 8,192-byte Xenon allocation. The new Xbox 360 detiler applies 16-bit endian
+correction, maps exactly 128 useful BC1 blocks out of that allocation, and emits the required
+1,024 linear bytes. The corresponding PC mip independently decompresses from a 225-byte LZO
+wrapper to the same linear size.
+
+Both linear payloads now pass the probe's BC1 decoder and render as the same vertical fade mask.
+Because Judgment and Gears 3 are separate cooks, the compressed blocks are not byte-identical,
+but their decoded pixels are tightly aligned: 59.28% exact channel bytes, mean absolute error
+1.45, RMSE 2.744, and maximum error 9. This is the first validated Xbox texture-data conversion
+slice.
+
+External cache recovery is now validated on the same asset's two higher-resolution mips.
+Manifest offsets in Judgment's `Textures.tfc` locate 552 and 458-byte LZX wrappers, which expand
+to 16,384 and 8,192-byte Xbox allocations. Mip 0 (128x256) detiles to 16,384 linear BC1 bytes;
+mip 1 (64x128) detiles to 4,096, correctly discarding half of its padded physical allocation.
+The matching Gears 3 PC LZO payloads expand to the same linear sizes, and all four decoded images
+show the same fade mask. Against those separate PC cooks, Judgment mip 0 is 95.58% exact channel
+bytes with MAE 0.061, RMSE 0.312, and maximum error 3; mip 1 is 65.72% exact with MAE 0.961,
+RMSE 1.895, and maximum error 9.
+
+At that point, the remaining texture blockers were packed mip-tail offsets, platform format
+changes such as the 8x64 smoke fade being `PF_G8` on Xbox but `PF_A8R8G8B8` on PC, and v828
+`Texture2D` package emission. The next section completes the first narrowly scoped emission
+fixture. The later exact-tail section then resolves one BC1 geometry; format remapping remains
+unresolved.
+
+## First writable v828 Texture2D fixture
+
+`package-probe --convert-texture-fixture` now emits a compact, standalone PC package for
+`T_GT_Fir_Cluster_MASK` directly from the reconstructed Judgment package plus its original
+`Textures.tfc`. The command uses zero-based export index 1070, recovers/decompresses the first two
+external LZX allocations and the third inline allocation, then performs the already validated
+Xenon BC1 detile and 16-bit endian correction in memory.
+
+The emitted package is little-endian v828 with PC package flags, saved engine version 8741, cooked
+content version 134, 17 remapped names, two imports (`Engine` and `Engine.Texture2D`), and one root
+texture export. It preserves the six required scalar/name properties (`SizeX`, `SizeY`, original
+sizes, `Format=PF_DXT1`, and `MipTailBaseIdx`), removes the now-inapplicable
+`TextureFileCacheName` and `FirstResourceMemMip`, maps the console NetIndex to `INDEX_NONE`, and
+clears the seek-free forced-export bit. Because only the three proven non-packed levels are
+written, `MipTailBaseIdx` changes from 3 to 2.
+
+All three PC mip records are uncompressed inline bulk whose element counts describe linear BC1
+data rather than Xbox allocation padding: 16,384 bytes at 128x256, 4,096 bytes at 64x128, and
+1,024 bytes at 32x64. The writer independently reparses every table and property, validates all
+name/import/export and positive bulk offsets, requires exact export-boundary closure, and compares
+the written payload bytes with the in-memory detiled data. A separate v4 manifest reports 1/1
+valid Texture2D payloads and zero invalid references. Re-extracted mip SHA-256 values match the
+retained detiled artifacts exactly.
+
+The retained reproducible artifact is
+`package-probe\build\validation\T_GT_Fir_Cluster_MASK.judgment-v828-fixture-v2.upk`: 22,440 bytes,
+SHA-256 `0B2D8D1A90802D90DB713B1A79BEE34CCFA956E747CAD6265C18D7037D70E95B`.
+Unmodified Jacinto 1.1.1 Win64 `LoadPackage` accepted these bytes with `0 error(s), 0 warning(s)`.
+The independent campaign rebuild's fresh Win32 editor executable accepts the fixtures with the
+same result. Its shipped campaign game executable is a valid fresh game build but omits editor
+commandlets, and its copied Win64 executable is byte-identical to Jacinto 1.1.1; therefore the
+campaign editor is the meaningful second deserialization target while stock Win64 remains the
+best fast commandlet baseline.
+
+This proves a writable single-texture boundary, not a Judgment PC build. Render-resource creation
+is now asserted by an isolated source-derived Win32 editor build. An opt-in extension to
+`UnrealEd.LoadPackageCommandlet` finds the named `UTexture2D`, checks caller-supplied dimensions,
+format, and mip count, creates a 64x64 off-screen viewport to trigger UE3's normal PC D3D device
+initialization, creates the texture resource explicitly despite commandlet `GIsUCC`, flushes the
+rendering thread, and requires initialized `FTextureResource`, `TextureRHI`, and `Texture2DRHI`
+handles. Default `LoadPackage` behavior is unchanged.
+
+The retained diagnostic executable is
+`gears_of_war_3_2011-09-14\Binaries\Win32\GearGame-JudgmentTextureTest-v3.exe`, 59,526,144 bytes,
+SHA-256 `736756A0043EA69DB10A5002F56205AF344B99979813F53F6AFDC40D94AC1537`.
+Its `JudgmentTextureResourceD3D-v3.log` run selected a real NVIDIA adapter and `PC-D3D-SM3`, then
+reported `size=128x256 format=PF_DXT1 mips=3 requested=3 resident=3 rhi-bytes=21504` followed by
+`Success - 0 error(s), 0 warning(s)`. The 21,504-byte allocation is exactly
+16,384 + 4,096 + 1,024, so all three emitted linear BC1 levels reached the RHI upload path. A
+separate ordinary `-nullrhi` regression run on the same executable also completed with zero
+errors and warnings. Hashes confirm the existing Jacinto 1.1.1 executable, campaign rebuild, and
+pre-existing fresh editor were not overwritten.
+
+This still proves only a standalone single-texture package and render-resource upload, not a
+Judgment PC build or an on-screen sampled draw. The isolated source editor is now the strongest
+diagnostic texture target; the fresh campaign executable remains the better eventual gameplay
+and visible-render target once it has an isolated package-loader hook.
+
+## Exact BC1 packed-tail recovery
+
+The next narrow step resolves the packed tail for this one oracle without introducing a runtime
+dependency. The January 2011 Gears `XeTools.dll` contains the source-backed XG cooker path, while
+Judgment ships its April 2012 `Xbox360Tools.dll` and matching PDB. An opt-in extension in a new,
+isolated `GearGame-JudgmentTextureTest-v4.exe` loaded each DLL separately and cooked a marker
+texture with one unique byte value per logical BC1 block. The `FConsoleSupport` vtable slot used
+by both DLLs was checked against the private symbols before calling it. Neither existing runtime
+nor the earlier diagnostic editor was overwritten.
+
+Both cooker versions produced the same mapping for all 45 logical blocks in tail mips 3 through
+8. `GetMipSize(3)` reports an 8,192-byte XG allocation, but all markers fall between bytes 8 and
+1,855 and the upper 4 KiB is zero. This explains Judgment's 4,096-byte serialized bulk rather
+than indicating an XDK incompatibility. The ordinary per-level detiler was demonstrably wrong for
+this data; the marker-derived map recovers 256, 64, 16, 8, 8, and 8 linear bytes with per-block
+16-bit endian correction.
+
+`package-probe --convert-texture-fixture-full-mips` now applies that dependency-free inverse map.
+It is deliberately restricted to `T_GT_Fir_Cluster_MASK` with the validated 128x256 dimensions,
+nine exact mip dimensions, tail base 3, and a 4,096-byte tail allocation. Every mismatch fails
+closed. The original `--convert-texture-fixture` remains the three-mip path and still emits bytes
+identical to the retained v2 artifact.
+
+The new artifact is
+`package-probe\build\validation\T_GT_Fir_Cluster_MASK.judgment-v828-full-mips-v3.upk`: 22,944
+bytes, SHA-256 `F762E164AB0DD43D040D8280E1912B7791C3E9686458355EBA7EDCD1A845F522`.
+It contains nine uncompressed inline PC BC1 payloads of 16,384, 4,096, 1,024, 256, 64, 16, 8,
+8, and 8 bytes, with `MipTailBaseIdx` rewritten from 3 to the PC-style last mip index 8. The
+independent manifest reports one valid Texture2D payload, zero invalid references, and exact
+export-boundary closure. The writer's overwrite refusal was rechecked without changing the hash.
+
+All six tail payloads were extracted again and decoded independently beside the matching Gears 3
+PC LZO mips. Their BGRA mean absolute errors for mips 3 through 8 are 1.02, 1.39, 2.94, 8.00,
+27.38, and 10.05 respectively; the last three samples are single 4x4 blocks. The images retain
+the expected fade instead of the white stripe/black corruption produced by the naive detiler.
+
+Unmodified Jacinto 1.1.1 Win64 `LoadPackage` accepted the full-mip artifact with
+`0 error(s), 0 warning(s)`. The independent campaign rebuild's
+`GearGame-Campaign-Editor.exe` (59,524,608 bytes, SHA-256
+`63DF8A3BE782A1100A475172515DB3EF51D85C0DFFB9B5A31A843E99C4C4CA0E`) independently produced
+the same zero-error/warning result and is the best clean second deserialization target. The
+isolated v4 diagnostic editor (59,531,264 bytes, SHA-256
+`55D04B7C76AC84337DCE1B27EC2631D9E3EA1EB54ACE394543AB0001F0D996A8`) selected the NVIDIA D3D11
+adapter and reported `size=128x256 format=PF_DXT1 mips=9 requested=9 resident=9 rhi-bytes=21864`,
+then completed with zero errors and warnings. The RHI byte count exactly equals the nine emitted
+linear payload sizes.
+
+This is still one standalone texture, not a Judgment PC build. Packed-tail recovery is now
+reproducible only for this exact BC1 geometry. The next blockers are generalizing tail placement
+across dimensions/formats, remapping platform formats such as Xbox `PF_G8` to PC
+`PF_A8R8G8B8`, and proving an on-screen sampled draw. Broad map conversion remains out of scope
+until those texture cases are repeatable.
