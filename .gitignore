@@ -203,6 +203,25 @@ cython_debug/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
 
+# OS metadata
+desktop.ini
+Thumbs.db
+
+# Local retail/extracted game content. These inputs are never repository data.
+local-game-content/
+private-fixtures/
+extracted-game/
+
+# Gears/UE3 package and media formats are default-denied. Use `git add -f` only
+# for an original or redistributable fixture with documented provenance.
+*.iso
+*.xex
+*.upk
+*.xxx
+*.tfc
+*.xma
+*.bik
+
 # Ruff stuff:
 .ruff_cache/
 
