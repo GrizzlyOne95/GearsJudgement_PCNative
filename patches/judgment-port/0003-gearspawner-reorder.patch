@@ -1,0 +1,39 @@
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\sweep-v50\\GearGameSpawnerClasses.h.bak" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\GearGame\\Inc\\GearGameSpawnerClasses.h"
+index 50d2b7e..70d7e6f 100644
+--- a/Development/Src/GearGame/Inc/GameSequenceClasses.h
++++ b/Development/Src/GearGame/Inc/GameSequenceClasses.h
+@@ -329,20 +329,20 @@ class AGearSpawner : public AActor
+ {
+ public:
+     //## BEGIN PROPS GearSpawner
+-    FPointer VfTable_IInterface_AIDirector;
+-    FVector2D AIDSpawnTickets;
+-    class AActor* Killer;
+-    INT NumSpawnsBuffered;
+-    INT MaxSpawnBufferLength;
+-    INT AIDRemainingSpawnTickets;
+-    BITFIELD bUsesDelayedSpawns:1;
+-    BITFIELD bDisabledByAIDirectorVolume:1;
+-    BITFIELD bBlockedByAIDirectorVolume:1;
+-    BITFIELD bAutoDeActivate:1;
+-    BITFIELD bActive:1;
+-    TArrayNoInit<FSpawnerSlot> SpawnSlots;
+-    TArrayNoInit<class USeqAct_AIFactory*> Factories;
+-    TArrayNoInit<class USeqAct_AIDFactory*> AIDFactories;
++FPointer VfTable_IInterface_AIDirector;
++BITFIELD bActive:1;
++BITFIELD bAutoDeActivate:1;
++BITFIELD bUsesDelayedSpawns:1;
++BITFIELD bDisabledByAIDirectorVolume:1;
++BITFIELD bBlockedByAIDirectorVolume:1;
++TArrayNoInit<class USeqAct_AIFactory*> Factories;
++TArrayNoInit<class USeqAct_AIDFactory*> AIDFactories;
++INT NumSpawnsBuffered;
++INT MaxSpawnBufferLength;
++TArrayNoInit<FSpawnerSlot> SpawnSlots;
++class AActor* Killer;
++INT AIDRemainingSpawnTickets;
++FVector2D AIDSpawnTickets;
+ //## END PROPS GearSpawner
+ 
+     void eventUnRegisterFactory(class USeqAct_AIFactory* Factory)

@@ -1,0 +1,55 @@
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\sweep-v50\\GearGameSequenceClasses.h.bak" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\GearGame\\Inc\\GearGameSequenceClasses.h"
+index a21f085..eed7e55 100644
+--- a/Development/Src/GearGame/Inc/GearGameSequenceClasses.h
++++ b/Development/Src/GearGame/Inc/GearGameSequenceClasses.h
+@@ -2059,28 +2059,28 @@ class USeqAct_DummyWeaponFire : public USeqAct_Latent
+ {
+ public:
+     //## BEGIN PROPS SeqAct_DummyWeaponFire
+-    FDummyFireObjectListParams MultipleTargetParams;
+-    FDummyFireObjectListParams MultipleOriginParams;
+-    class AGearWeapon* SpawnedWeapon;
+-    class ADummyWeaponFireActor* ReplicatedActor;
+-    FName TargetBoneName;
+-    FName OriginSocketName;
+-    INT ShotsToFire;
+-    INT ShotsFired;
+-    FLOAT RemainingFireTime;
+-    FLOAT InaccuracyDegrees;
+-    class UClass* WeaponClass;
+-    BYTE FiringMode;
+-    BITFIELD bSuppressTracers:1;
+-    BITFIELD bSuppressMuzzleFlash:1;
+-    BITFIELD bSuppressImpactFX:1;
+-    BITFIELD bSuppressDamage:1;
+-    BITFIELD bSuppressAudio:1;
+-    BITFIELD bStopped:1;
+-    BITFIELD bShootUntilStopped:1;
+-    BITFIELD bHideProjectile:1;
+-    BITFIELD bFiring:1;
+-    BITFIELD bFinished:1;
++INT ShotsToFire;
++BITFIELD bShootUntilStopped:1;
++BITFIELD bStopped:1;
++BITFIELD bFinished:1;
++BITFIELD bSuppressMuzzleFlash:1;
++BITFIELD bSuppressTracers:1;
++BITFIELD bSuppressImpactFX:1;
++BITFIELD bSuppressAudio:1;
++BITFIELD bSuppressDamage:1;
++BITFIELD bHideProjectile:1;
++BITFIELD bFiring:1;
++FLOAT InaccuracyDegrees;
++class UClass* WeaponClass;
++BYTE FiringMode;
++class AGearWeapon* SpawnedWeapon;
++FLOAT RemainingFireTime;
++INT ShotsFired;
++FName OriginSocketName;
++FName TargetBoneName;
++class ADummyWeaponFireActor* ReplicatedActor;
++FDummyFireObjectListParams MultipleTargetParams;
++FDummyFireObjectListParams MultipleOriginParams;
+ //## END PROPS SeqAct_DummyWeaponFire
+ 
+     void SpawnDummyWeapon(class AActor* OriginActor,class AActor* TargetActor);
