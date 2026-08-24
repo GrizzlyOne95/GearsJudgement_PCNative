@@ -354,3 +354,266 @@ startup/`PkgInfo` test unchanged. If the previous `AWorldInfo` destruction crash
 stack identifies the next startup-reachable native owner. The repeated missing `EnginePCF` import
 is a separate dependency and should be investigated as its own minimal reconstruction problem
 rather than hidden behind layout padding or a broad fake package.
+
+### 2026-08-20 direct-loader result: WorldInfo and Engine ABI corrected
+
+The rebuilt loader initially stopped at the same `AWorldInfo` destructor. Guarded destruction
+tracing identified the exact value as
+`WorldInfo.PeerHostMigration.HostMigrationTravelURL`. Its supposed Win32 `FString` header was
+`data=0x390, num=646, max=883`, proving that cleanup was reading neighboring fields rather than a
+constructed string.
+
+The v828 and v845 `FHostMigrationState` declarations are identical. The real mismatch was
+cumulative in the owning class:
+
+- Judgment's Xbox layout places `LastTimeUnbuiltLightingWasEncountered` four bytes later than the
+  Gears 3 Win32 `/Zp4` layout, so the compatibility header needs an explicit four-byte pad before
+  that `DOUBLE`.
+- Judgment expands `FLightmassWorldInfoSettings` from 60 to 88 bytes with
+  `bEnableAdvancedEnvironmentColor`, `EnvironmentSunColor`, `EnvironmentSunIntensity`,
+  `EnvironmentLightTerminatorAngle`, and `EnvironmentLightDirection`.
+
+Together these account exactly for the observed native/reflected offset difference:
+`PeerHostMigration` was native offset 1960 but v845 offset 1992. Loader v8 rebuilt with both ABI
+corrections destroyed `HostMigrationTravelURL` as `data=0, num=0, max=0` and advanced past
+`AWorldInfo`.
+
+The next destructor was `UGameEngine`. `GameEngine` itself is structurally identical between the
+packages, but its `UEngine` base is 16 bytes larger in Judgment. Regenerating the v845 native block
+identified two added flags (`UseSkeletalMeshTickOptimization`,
+`bDebug_DisableConnectionTimeout`) and three trailing floats (`DropRate1Range`, `DropRate2Range`,
+`DropRateSlowMultiplier`). Adding them aligned `NamedNetDrivers` at v845 offset 1856. Loader v9
+then destroyed that array as `data=0, num=0, max=0` and passed the complete prior cleanup path.
+
+The next reproducible blocker is no longer an invalid property value. During replacement of
+`Engine.Default__LevelStreamingDistance`, `StaticFindObjectFastInternal` finds the existing CDO
+with `RF_Unreachable` and asserts at `UnObj.cpp:3401`. This object-lifecycle/replacement invariant
+is the next direct-loader task.
+
+`EnginePCF` was tested independently with `redirect_imports.py`: all five package/object imports
+were redirected to same-class imports already present in `Engine.u`, eliminating every
+`EnginePCF` diagnostic without changing the original WorldInfo crash. It is therefore a separate
+content dependency and not the cause of either ABI mismatch above. The generated package and
+manifests remained local and were not added to Git.
+
+### 2026-08-23 session: heap-smash root cause, full Engine+GearGame ABI batch, loader-stream issue
+
+#### Root cause of the RF_Unreachable assert (v10 watchdog build)
+
+A new `-JUDGMENTCDOWATCH` diagnostic snapshots every live object at first `LoadAllObjects`
+and re-verifies lifecycle flags/name/outer before each export creation. First run with
+loader v10 produced exactly two violations before the v9 assert:
+
+| victim | old flags | new flags | corrupting export |
+| --- | --- | --- | --- |
+| `Engine.Default__LevelStreamingDistance` | `0x0000020400100200` | `0x00ffffff40800000` | `Engine.DOFAndBloomEffect` (export 10652) |
+| `Engine.Default__SkeletalMeshSocket` | `0x0000020400100200` | `0x000000003e4ccccd` | `Engine.SoundMode` (export 15352) |
+
+`0x3e4ccccd` is the float `0.2f`. This proved the assert had nothing to do with garbage
+collection: oversized script-class CDO replacements (`appMemzero(Obj,
+InClass->GetPropertiesSize())` over the old native-sized allocation in
+`StaticAllocateObject`) were writing past their heap blocks into adjacent natively
+registered objects, setting stray bits including `RF_Unreachable`
+(`0x200000000` = a TArray header straddling `ObjectFlags`). The fix is the same
+methodology as FPostProcessSettings: regenerate native member blocks from the v845
+package metadata.
+
+#### Batched ABI correction
+
+`gen_native_block.py` runs against new manifests (`Engine.v845.manifest.json`,
+`GearGame.v845.manifest.json`, generated via `judgment-package-probe --manifest`;
+GearGame: 66,858 names / 6,302 imports / 273,455 exports, exact layout) produced blocks
+for all remaining differing owners. Integrated into headers this session:
+
+- Engine: all 38 remaining unfixed owners (14 pre-`LevelStreamingDistance` suspects plus
+  the rest), including `AudioDevice`/`AudioComponent` map members resolved through
+  reference-header reuse plus hand declarations (`TMap<FName,DWORD>
+  SoundClassToStatIdMapping`, `TMap<USoundNode*,UINT> SoundNodeOffsetMap`), judgment-only
+  structs `FPreCombinedStaticMeshActor` and `FAskedClient`, a byte-exact
+  `FJudgmentAudioEQEffectStandIn` for ReverbVolume's embedded EQSettings (the real audio
+  header cannot be included from EngineClasses.h), and typed-pointer restoration where
+  the package only says "pointer" but engine code needs the real type
+  (`Sources`/`FreeSources`/`Effects`/`TextToSpeech`/`WaveInstances`/`ViewState`/
+  `ArchivePtr`/`DLCConfigCacheChanges`/`NavMeshPathParams.Interface`/`LinkedOutputs`).
+- GearGame: 127 shared differing owners across 11 headers plus markerless structs
+  (`ActionReloadBarData`, `DeathData`, `EnemySpawnInfo`, `KillPointInfo`,
+  `LoadedEnemyList`, `ObjectiveInfo`, `AISpawnInfo`, `AITypeInfo`, `ExtraGUDCollection`,
+  `LocalEnemyInfo`, `PlayerInfo`); `GearSquad.DecayedCoverMap` and five GUDManager maps
+  resolved via reference-header mode; 56 delta entries proved script-only (no native
+  declaration needed) and `CheckpointRecord` confirmed as a scan artifact of per-class
+  structs.
+- New `GearGame\Inc\GearGameJudgmentStructs.h` holds judgment-only structs referenced by
+  value from multiple headers (`FEnemySelection` moved there, `FPlayerInfoCache`,
+  `FUltimateAIConstraint`, `FAIDEnemySelection`, `FCustomAnimInfo`, `FEnemyListRecord`,
+  seven `FHvBLocust*Level` structs, `FGearSimpleLaserInfo`), wrapped in the same
+  `#pragma pack(push,4)` discipline.
+- Minimal .cpp migrations updated for renamed/dropped v845 members
+  (`*_DEPRECATED` lightmap/chapter/sort-mode migrations now no-ops or renamed;
+  GearPawn keeps `LastTaccomTime`/`PostTaccomFireDelay` as native-only members).
+
+Loader builds are produced with the portable VC9 toolchain:
+`VS90COMNTOOLS=...\_Toolchain\PortableVC9\Layout\Microsoft Visual Studio 9.0\Common7\Tools\`
+plus `UE3_WINDOWS_SDK_DIR=...\Layout\Microsoft SDKs\Windows\v6.0A`, then
+`UnrealBuildTool.exe GearGame Win32 Release -OUTPUT <exe>`.
+
+#### Result and the one remaining blocker
+
+Loader v12 loaded Core.u and Engine.u completely (zero watchdog violations - the entire
+Engine ABI is now clean) and progressed deep into GearGame.u, passing `GearAI` (208->227
+members) which was the previous blocker. The new failure is not an ABI issue:
+
+`Bad import index 5932/32` inside `Function GearGame.GearAI_Cover:CheckForVehicleImpl`.
+Instrumented degradation (v20 returns NULL instead of aborting on bad indices) exposed
+the mechanism: between two consecutive reads of the same linker object,
+`ExportMap.Num()` changed from the correct 273,455 to 0, the summary counters read as
+garbage (`Summary.ExportCount=369098752`), and `LinkerRoot` became an unaligned junk
+pointer, while `Filename` stayed correct and `Tell()` returned 172 inside a ~25 MB file.
+The ULinkerLoad block itself is being overwritten/reused mid-read - i.e., a loader-stream
+lifetime problem (precache buffer/handle loss after the missing-content storms for
+`EnginePCF`, `AIEditorResources_Tmp`, `UI_BvH`, `Effects_POC`; earlier dumps show
+`GetLastError: The system cannot find the file specified`), not package-layout damage.
+
+All instrumentation remains in place behind flags (`-JUDGMENTCDOWATCH`,
+`JUDGMENT_LINKER_SUMMARY_SMASH`, `JUDGMENT_IMPORT_FAIL`/`JUDGMENT_BAD_EXPORT_INDEX`
+context dumps, `UStruct::Link` cross-linker check). Next session should reproduce with
+missing-content imports redirected away (or stub packages supplied) to see whether the
+stream corruption disappears, then harden `ULinkerLoad::Preload`'s precache path.
+
+Artifacts retained: `Binaries\Win32\GearGame-JudgmentLoader-v10..v20.exe`,
+staging blocks under `package-probe\build\abi-fix-staging\`, run logs
+`JudgmentLoader-v10..v20*.log` in `NostalgiaBundle\logs\GearsJudgement_PCNative-runtime\`.
+
+### 2026-08-23 session II: linker-smash forensics - exonerations, instrumentation, and the expression-stream lead
+
+Build lineage this session (all `Binaries\Win32\GearGame-JudgmentLoader-v2*.exe`,
+logs alongside in `GearsJudgement_PCNative-runtime\`):
+
+- v21 rooted every linker (`RF_RootSet` under `-JUDGMENTPKGVER`) and added
+  `JUDGMENT_GC`, `JUDGMENT_VERIFY_ORPHAN` (Verify() catch), and
+  `JUDGMENT_LINKER_BEGINDESTROY` diagnostics. Result: crash unchanged, and NONE of
+  those fired - garbage collection never runs, Verify()'s orphaning path never fires,
+  no BeginDestroy/Detach occurs. The GC/orphan theory from the research pass is dead.
+- v22 forced plain handle-backed file readers (no precache buffer, no SHA buffer,
+  `JUDGMENT_LOADER_READER` logs each linker's concrete reader). GearGame.u opens as a
+  40,342,788-byte file whose manifest export coverage ends at exactly 40,342,788 (the
+  probe's `exports_end: 21045426` is the export TABLE end, not payload end). Crash
+  unchanged -> reader-buffer lifetime theories are dead too.
+- v23/v24/v25 attempted a `_msize()` replace-overflow trap in `StaticAllocateObject`.
+  Lesson recorded: calling `_msize` on permanent-pool objects (registration time, or the
+  global `None` object during early Core.u replaces) is undefined behavior and crashed or
+  distorted runs; even flag-gated versions perturbed behavior. Trap removed in v26;
+  v26 reproduces the exact baseline failure. Do not reintroduce without pool-range guards
+  AND validation that early-init behavior is unchanged.
+
+Established facts about the failure:
+
+1. Deterministic: fails inside `Preload(Function GearGame.GearAI_Cover:CheckForVehicleImpl)`
+   at archive position `Tell()==172` while resolving import index -5933.
+2. At that moment the linker object itself reads back corrupted: `ExportMap.Num()`
+   flips 273455 -> 0 between consecutive calls, Summary counters are float-like garbage,
+   `LinkerRoot` becomes unaligned junk, while `Filename` stays intact. Something wrote
+   over the linker heap block during this one function's serialization.
+3. No GC, no detach, no reader swap, and zero `_msize`-detectable replace overflows
+   anywhere in Engine.u or GearGame.u up to that point: every replaced object's
+   allocation was big enough.
+
+Serialization-format findings (offline analysis, `Temp\opencode\v845drift\`):
+
+- `Engine.Actor.GetTerminalVelocity` is byte-identical in structure across the v828
+  control and the v845 file (same slots, only package-relative indices differ), so there
+  is no naive fixed-header drift for functions.
+- CRITICAL correction to the working model: UE3 does NOT store function bodies as raw
+  byte arrays. `UStruct::Serialize` reads `ScriptBytecodeSize` (logical) +
+  `ScriptStorageSize` (physical) and then executes the `SerializeExpr` state machine over
+  the stream; consumption depends on opcode semantics. A flat-slot parser can never fit,
+  which is why the brute-force fits failed.
+- Remaining open question: the exact UStruct/UState/UClass/UFunction on-disk field order
+  for these packages (candidate orders differ on where `ScriptText`/`CppText` refs sit
+  relative to `Children`, and whether `Line`/`TextPos` serialize here), and whether a
+  v842+ era expression-opcode change makes the Sept-2011 `SerializeExpr` miswalk v845
+  streams. The observed wild import index (-5933), float-garbage patterns, and heap
+  smashes are all consistent with an expression-stream desync writing through bogus
+  operands.
+
+Recommended next session plan:
+
+1. Finish fitting the UStruct header against the v828 CONTROL by simulating the actual
+   `SerializeExpr` machine from `UnClass.cpp` (opcode table in `UnScript.h`), not flat
+   slots; validate on thousands of control functions until consumption == serial_size.
+2. Run the fitted walker over v845 Engine/GearGame exports in export order; the first
+   divergent opcode identifies the format delta precisely.
+3. Patch the Sept-2011 `SerializeExpr`/serializers behind the `-JUDGMENTPKGVER` gate for
+   any confirmed delta, rebuild, and rerun the watchdog suite.
+
+### 2026-08-23 session III: expression-walker built; bytecode-format drift EXCLUDED
+
+`Temp\opencode\v845drift\walk.py` implements a faithful Python model of the on-disk
+function serialization, validated against an in-engine field dump
+(`JUDGMENT_STRUCT`, loader v27): for `Function Engine.Actor:Sleep` the runtime reads
+`line=1535 textpos=42659 logical=11 physical=7`. Established layout:
+
+- Header (12 dwords): Next, SuperStruct, ScriptText-ref, Children-ref, CppText-ref,
+  three unknown dwords (0 / children+1 / 0 - identical in both eras), Line, TextPos,
+  ScriptBytecodeSize (logical), ScriptStorageSize (physical).
+- Storage: `SerializeExpr` stream, physical bytes.
+- Tail (15 bytes): iNative u16, OperPrecedence u8, FunctionFlags **DWORD**,
+  [RepOffset u16 if FUNC_Net(0x00200000)], FriendlyName FName q64.
+- Bytecode pointer operands (`XFERPTR`) are **4-byte indices on disk** but advance the
+  logical cursor by 8 (memory QWORD width) - this explains logical>physical sizes.
+
+Walker results: control v828 Engine.u functions 72.9% exact-consumption match;
+v845 Engine.u functions **73.1%** with the IDENTICAL failure set; v845 GearGame.u 47.6%
+(walker gaps in debug-info/net variants, equally present in the control).
+
+CONCLUSION: there is no v828->v845 bytecode format drift. The engine parses v845
+function streams exactly as it parses its own v828 files, mismatches included. The
+GearAI_Cover linker-smash therefore originates elsewhere - prime suspects are now (a)
+Class/State/ScriptStruct export parsing of v845 content (the three unknown header dwords
+appear in ALL UStructs and are consumed by the real engine, so they are reader-known),
+(b) tagged-property/default serialization paths, or (c) an interaction inside
+CreateExport class-binding for GearGame script-only classes. The walker and header map
+are retained as the foundation for extending the simulation to Class exports next.
+
+### 2026-08-23 session III addendum: bytecode-window theory also excluded
+
+Loader v28 added `JUDGMENT_BYTECODE_NESTED_PRELOAD` logging at `ULinkerLoad::Preload`
+entry: it fires if any preload runs while the linker's Loader is swapped to the
+stack-local bytecode MemReader inside `UStruct::Serialize`. Result: zero occurrences -
+the MemReader window never experiences nested preloads, excluding that corruption route
+as well. A living short-form status document now exists in the build tree at
+`C:\Games\Gears 3 Files\gears_of_war_3_2011-09-14\JUDGMENT-PORT-STATUS.md`, containing
+the milestone summary, the full exonerated-mechanisms table, confirmed layout facts,
+live hypotheses, and the exact build/run recipe for the diagnostic loaders.
+
+
+### 2026-08-24 session II: layout sweep industrialized; exit purge completes (exit code 0)
+
+Built on the session-I milestone (full script load). The remaining blocker was
+exit-time purge faulting on classes whose v845 layout was REORDERED relative to
+the alpha headers.
+
+- Generalized the ExitProperties layout dumper: `-JUDGMENTLAYOUTALL` /
+  `-JUDGMENTLAYOUTCLASSES=` now emit a `[JUDGLAYOUT][CLS:<name>]` property-chain
+  table for every destroyed class. A single instrumented run yields the full
+  4,778-class relinked-layout database used for offline sweeping
+  (`JudgmentLoader-v49-layoutall.log`).
+- Wrote a hierarchy-aware verifier (staged at `Temp\opencode\sweep_v3.py`):
+  parent graph from header declarations, child base anchored at the PARENT'S
+  logged v845 PropertiesSize, x86 packing simulation (align<=4 + bitfield dword
+  runs), and a stage-only-if-every-offset-reproduces rule. Key methodology
+  corrections recorded: (1) anchoring at min-own-offset masks parent-size drift -
+  GamePlayerController had LOST `CurrentSoundMode` in v845 and the resulting -8
+  byte shift of every GearPC-family object masqueraded as a GearPC/FortUpgradeList
+  stride bug; (2) member add/remove must be classified separately from pure
+  reorder before staging (109 MEMBER_DELTA classes hide inside what naive
+  offset-diffing calls "reorders"); (3) multiset-check both sides symmetrically.
+- Applied 7 simulation-proven reorders (AGearAI, GearEngine, FileWriter, GearGRI,
+  GearPawn_LocustCorpserLarvaUndergroundBase, GearSpawner,
+  SeqAct_DummyWeaponFire) plus the AGamePlayerController member removal.
+- RESULT: `GearGame-JudgmentLoader-v51.exe PkgInfo -JUDGMENTPKGVER=845` completes
+  with `Success - 0 error(s), 0 warning(s)` AND exits 0 through StaticExit purge
+  (`JudgmentLoader-v51.log`). The reorder-crash family is closed.
+- Remaining known deltas for the next phase (live-object instantiation readiness):
+  109 MEMBER_DELTA + 29 SIZE_MISMATCH classes from sweep_v3's buckets; plan is to
+  extend gen_native_block.py to emit full BEGIN/END PROPS blocks from package
+  payloads and sweep both buckets to OK.
