@@ -1,0 +1,319 @@
+diff --git "a/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\Engine\\Inc\\EngineClasses.h.bak-20260816" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\Engine\\Inc\\EngineClasses.h"
+index fe862e2..20da755 100644
+--- a/Development/Src/Engine/Inc/EngineClasses.h	
++++ b/Development/Src/Engine/Inc/EngineClasses.h	
+@@ -5188,7 +5188,17 @@ struct FPostProcessSettings
+     BITFIELD bOverride_Bloom_Scale:1;
+     BITFIELD bOverride_Bloom_Threshold:1;
+     BITFIELD bOverride_Bloom_Tint:1;
++    BITFIELD bOverride_Bloom_TintInner:1;
++    BITFIELD bOverride_Bloom_TintOuter:1;
++    BITFIELD bOverride_Bloom_Layer0Weight:1;
++    BITFIELD bOverride_Bloom_Layer1Weight:1;
++    BITFIELD bOverride_Bloom_Layer2Weight:1;
++    BITFIELD bOverride_Bloom_Layer3Weight:1;
++    BITFIELD bOverride_Bloom_Layer4Weight:1;
+     BITFIELD bOverride_Bloom_ScreenBlendThreshold:1;
++    BITFIELD bOverride_Bloom_DirtMaskIntensity:1;
++    BITFIELD bOverride_Bloom_DirtMaskColor:1;
++    BITFIELD bOverride_Bloom_DirtMaskTexture:1;
+     BITFIELD bOverride_Bloom_InterpolationDuration:1;
+     BITFIELD bOverride_DOF_FalloffExponent:1;
+     BITFIELD bOverride_DOF_BlurKernelSize:1;
+@@ -5219,6 +5229,17 @@ struct FPostProcessSettings
+     BITFIELD bOverride_Scene_ColorGradingLUT:1;
+     BITFIELD bOverride_RimShader_Color:1;
+     BITFIELD bOverride_RimShader_InterpolationDuration:1;
++    BITFIELD bOverride_EnableAdaptiveLuminance:1;
++    BITFIELD bOverride_AdaptiveLuminance_AdaptationToBrightTime:1;
++    BITFIELD bOverride_AdaptiveLuminance_AdaptationToDarkTime:1;
++    BITFIELD bOverride_AdaptiveLuminance_AdaptationPercentageOverLum:1;
++    BITFIELD bOverride_AdaptiveLuminance_AdaptationTargetLuminance:1;
++    BITFIELD bOverride_AdaptiveLuminance_AdaptationMultiplierHighCap:1;
++    BITFIELD bOverride_AdaptiveLuminance_AdaptationMultiplierLowCap:1;
++    BITFIELD bOverride_AdaptiveLuminance_bAdaptationForceConstantMul:1;
++    BITFIELD bOverride_AdaptiveLuminance_AdaptationConstantMultiplier:1;
++    BITFIELD bOverride_AdaptiveLuminance_AdaptationJitterBetweenFrames:1;
++    BITFIELD bOverride_AdaptiveLuminance_InterpolationDuration:1;
+     BITFIELD bEnableBloom:1;
+     BITFIELD bEnableDOF:1;
+     BITFIELD bTwoLayerSimpleDepthOfField:1;
+@@ -5226,12 +5247,24 @@ struct FPostProcessSettings
+     BITFIELD bEnableSceneEffect:1;
+     BITFIELD bAllowAmbientOcclusion:1;
+     BITFIELD bOverrideRimShaderColor:1;
++    BITFIELD bEnableAdaptiveLuminance:1;
+     FLOAT Bloom_Scale;
++    FLOAT DOF_BlurBloomKernelSize;
++    INT Bloom_Layers;
+     FLOAT Bloom_Threshold;
+-    FColor Bloom_Tint;
+     FLOAT Bloom_ScreenBlendThreshold;
++    FColor Bloom_Tint;
++    FColor Bloom_TintInner;
++    FColor Bloom_TintOuter;
++    FLOAT Bloom_Layer0Weight;
++    FLOAT Bloom_Layer1Weight;
++    FLOAT Bloom_Layer2Weight;
++    FLOAT Bloom_Layer3Weight;
++    FLOAT Bloom_Layer4Weight;
++    FLOAT Bloom_DirtMaskIntensity;
++    FColor Bloom_DirtMaskColor;
++    class UTexture2D* Bloom_DirtMaskTexture;
+     FLOAT Bloom_InterpolationDuration;
+-    FLOAT DOF_BlurBloomKernelSize;
+     FLOAT DOF_FalloffExponent;
+     FLOAT DOF_BlurKernelSize;
+     FLOAT DOF_MaxNearBlurAmount;
+@@ -5260,7 +5293,17 @@ struct FPostProcessSettings
+     FLinearColor RimShader_Color;
+     FLOAT RimShader_InterpolationDuration;
+     class UTexture* ColorGrading_LookupTable;
+-    struct FLUTBlender ColorGradingLUT;
++    FLUTBlender ColorGradingLUT;
++    FLOAT AdaptiveLuminance_AdaptationToBrightTime;
++    FLOAT AdaptiveLuminance_AdaptationToDarkTime;
++    FLOAT AdaptiveLuminance_AdaptationPercentageOverLum;
++    FLOAT AdaptiveLuminance_AdaptationTargetLuminance;
++    FLOAT AdaptiveLuminance_AdaptationMultiplierHighCap;
++    FLOAT AdaptiveLuminance_AdaptationMultiplierLowCap;
++    BITFIELD AdaptiveLuminance_bAdaptationForceConstantMul:1;
++    FLOAT AdaptiveLuminance_AdaptationConstantMultiplier;
++    FLOAT AdaptiveLuminance_AdaptationJitterBetweenFrames;
++    FLOAT AdaptiveLuminance_InterpolationDuration;
+ 
+ 		/* default constructor, for script, values are overwritten by serialization after that */
+ 		FPostProcessSettings()
+@@ -5507,13 +5550,34 @@ public:
+     NO_DEFAULT_CONSTRUCTOR(APrecomputedVisibilityVolume)
+ };
+ 
++// Judgment (v845): AReverbVolume embeds AudioEQEffect by value (EQSettings). The real
++// FAudioEQEffect lives in EngineAudioDeviceClasses.h, which cannot be included here without
++// dragging audio runtime declarations into every TU. This byte-exact stand-in keeps the
++// native class size sufficient; layout mirrors the v845 package member list exactly.
++struct FJudgmentAudioEQEffectStandIn
++{
++	DOUBLE RootTime;
++	BITFIELD bEnabled:1;
++	FLOAT FadeIn;
++	FLOAT FadeOut;
++	FLOAT HFFrequency;
++	FLOAT HFGain;
++	FLOAT MFCutoffFrequency;
++	FLOAT MFBandwidth;
++	FLOAT MFGain;
++	FLOAT LFFrequency;
++	FLOAT LFGain;
++};
++
+ struct FReverbSettings
+ {
++    //## BEGIN PROPS ReverbSettings
+     BITFIELD bApplyReverb:1;
+-    SCRIPT_ALIGN;
+     BYTE ReverbType;
+     FLOAT Volume;
+     FLOAT FadeTime;
++    class UCustomReverbParameters* CustomParameters;
++    //## END PROPS ReverbSettings
+ 
+     /** Constructors */
+     FReverbSettings() {}
+@@ -5529,9 +5593,12 @@ public:
+     //## BEGIN PROPS ReverbVolume
+     FLOAT Priority;
+     BITFIELD bEnabled:1;
+-    SCRIPT_ALIGN;
+-    struct FReverbSettings Settings;
++    BITFIELD bApplyEQ:1;
++    FReverbSettings Settings;
+     FInteriorSettings AmbientZoneSettings;
++    FJudgmentAudioEQEffectStandIn EQSettings;
++    FLOAT EQFadeInTime;
++    FLOAT EQFadeOutTime;
+     class AReverbVolume* NextLowerPriorityVolume;
+     //## END PROPS ReverbVolume
+ 
+@@ -5673,6 +5740,7 @@ public:
+     BITFIELD bStopOnEncroach:1;
+     BITFIELD bShouldShadowParentAllAttachedActors:1;
+     BITFIELD bIsLift:1;
++    BITFIELD bDisableCheckpointSaving:1;
+     class ANavigationPoint* MyMarker;
+     FLOAT MaxZVelocity;
+     FLOAT StayOpenTime;
+@@ -8441,14 +8509,13 @@ class AFileWriter : public AInfo
+ {
+ public:
+     //## BEGIN PROPS FileWriter
+-    FArchive* ArchivePtr;
+-    FStringNoInit Filename;
+-    BYTE FileType;
+-    SCRIPT_ALIGN;
+-    BITFIELD bFlushEachWrite:1;
+-    BITFIELD bWantsAsyncWrites:1;
+-    SCRIPT_ALIGN;
+-    //## END PROPS FileWriter
++class FArchive* ArchivePtr;
++FStringNoInit Filename;
++BYTE FileType;
++FStringNoInit CustomFilePath;
++BITFIELD bFlushEachWrite:1;
++BITFIELD bWantsAsyncWrites:1;
++//## END PROPS FileWriter
+ 
+     UBOOL OpenFile(const FString& InFilename,BYTE InFileType=0,const FString& InExtension=TEXT(""),UBOOL bUnique=FALSE,UBOOL bIncludeTimeStamp=FALSE);
+     void CloseFile();
+@@ -11893,6 +11960,20 @@ public:
+ 	UBOOL CanTeleport(AActor* A);
+ };
+ 
++// Judgment (v845) script struct backing AStaticMeshActor.PreCombinedStaticMeshActors.
++struct FPreCombinedStaticMeshActor
++{
++//## BEGIN PROPS PreCombinedStaticMeshActor
++	class UStaticMesh* Mesh;
++	FVector Location;
++	FRotator Rotation;
++	FVector PrePivot;
++	FLOAT DrawScale;
++	FVector DrawScale3D;
++	FVector ComponentScale3D;
++//## END PROPS PreCombinedStaticMeshActor
++};
++
+ class AStaticMeshActorBase : public AActor
+ {
+ public:
+@@ -11913,7 +11994,7 @@ public:
+     //## BEGIN PROPS StaticMeshActor
+     class UStaticMeshComponent* StaticMeshComponent;
+     BITFIELD bDisableAutoBaseOnProcBuilding:1;
+-    SCRIPT_ALIGN;
++    TArrayNoInit<FPreCombinedStaticMeshActor> PreCombinedStaticMeshActors;
+     //## END PROPS StaticMeshActor
+ 
+     DECLARE_CLASS(AStaticMeshActor,AStaticMeshActorBase,0,Engine)
+@@ -12040,6 +12121,7 @@ class UHeightFogComponent : public UActorComponent
+ public:
+     //## BEGIN PROPS HeightFogComponent
+     BITFIELD bEnabled:1;
++    BITFIELD bUseTexturedFog:1;
+     FLOAT Height;
+     FLOAT Density;
+     FLOAT LightBrightness;
+@@ -15587,7 +15669,8 @@ public:
+     FStringNoInit FaceFXAnimName;
+     INT MaxConcurrentPlayCount;
+     INT CurrentPlayCount;
+-    FName SoundGroup_DEPRECATED;
++    FName SoundGroup;
++    class USoundLimitsGroup* LimitsGroup;
+     //## END PROPS SoundCue
+ 
+     FLOAT GetCueDuration();
+@@ -16169,10 +16252,16 @@ struct FTitleSafeZoneArea
+ 
+ struct FPerPlayerSplitscreenData
+ {
++    //## BEGIN PROPS PerPlayerSplitscreenData
+     FLOAT SizeX;
+     FLOAT SizeY;
+     FLOAT OriginX;
+     FLOAT OriginY;
++    FLOAT AlternateSizeX;
++    FLOAT AlternateSizeY;
++    FLOAT AlternateOriginX;
++    FLOAT AlternateOriginY;
++    //## END PROPS PerPlayerSplitscreenData
+ 
+     /** Constructors */
+     FPerPlayerSplitscreenData() {}
+@@ -18471,18 +18560,21 @@ class ULocalPlayer : public UPlayer, public FObserverInterface
+ {
+ public:
+     //## BEGIN PROPS LocalPlayer
++    FPointer VfTable_FObserverInterface;
+     INT ControllerId;
+     class UGameViewportClient* ViewportClient;
+     FVector2D Origin;
+     FVector2D Size;
++    FVector2D AlternateOrigin;
++    FVector2D AlternateSize;
+     class UPostProcessChain* PlayerPostProcess;
+     TArrayNoInit<class UPostProcessChain*> PlayerPostProcessChains;
+     FSceneViewStateInterface* ViewState;
+     FSynchronizedActorVisibilityHistory ActorVisibilityHistory;
+     FVector LastViewLocation;
+-    struct FCurrentPostProcessVolumeInfo CurrentPPInfo;
+-    struct FCurrentPostProcessVolumeInfo LevelPPInfo;
+-    TArrayNoInit<struct FPostProcessSettingsOverride> ActivePPOverrides;
++    FCurrentPostProcessVolumeInfo CurrentPPInfo;
++    FCurrentPostProcessVolumeInfo LevelPPInfo;
++    TArrayNoInit<FPostProcessSettingsOverride> ActivePPOverrides;
+     BYTE AspectRatioAxisConstraint;
+     FStringNoInit LastMap;
+     BITFIELD bWantToResetToMapDefaultPP:1;
+@@ -18740,10 +18832,20 @@ public:
+     FLOAT BloomThreshold;
+     FColor BloomTint;
+     FLOAT BloomScreenBlendThreshold;
+-    FLOAT SceneMultiplier_DEPRECATED;
++    FLOAT SceneMultiplier;
+     FLOAT BlurBloomKernelSize;
+-    BITFIELD bEnableReferenceDOF_DEPRECATED:1;
+-    SCRIPT_ALIGN;
++    BITFIELD bUseGlareBloom:1;
++    BITFIELD bEnableReferenceDOF:1;
++    FColor BloomTintInner;
++    FColor BloomTintOuter;
++    FLOAT BloomLayer0Weight;
++    FLOAT BloomLayer1Weight;
++    FLOAT BloomLayer2Weight;
++    FLOAT BloomLayer3Weight;
++    FLOAT BloomLayer4Weight;
++    FLOAT BloomDirtMaskIntensity;
++    FColor BloomDirtMaskColor;
++    class UTexture2D* BloomDirtMaskTexture;
+     BYTE DepthOfFieldType;
+     BYTE DepthOfFieldQuality;
+     class UTexture2D* BokehTexture;
+@@ -18828,13 +18930,24 @@ public:
+     FLOAT SceneDesaturation;
+     FVector SceneColorize;
+     BYTE TonemapperType;
++    BYTE PostProcessAAType;
+     FLOAT TonemapperRange;
+     FLOAT TonemapperToeFactor;
+     FLOAT TonemapperScale;
+-    FLOAT MotionBlurSoftEdgeKernelSize;
++    BITFIELD bEnableAdaptiveLuminance:1;
++    BITFIELD bAdaptationForceConstantMul:1;
+     BITFIELD bEnableImageGrain:1;
+     BITFIELD bScaleEffectsWithViewSize:1;
+-    BITFIELD bEnableHDRTonemapper_DEPRECATED:1;
++    BITFIELD bEnableHDRTonemapper:1;
++    FLOAT AdaptationToBrightTime;
++    FLOAT AdaptationToDarkTime;
++    FLOAT AdaptationPercentageOverLum;
++    FLOAT AdaptationTargetLuminance;
++    FLOAT AdaptationMultiplierHighCap;
++    FLOAT AdaptationMultiplierLowCap;
++    FLOAT AdaptationConstantMultiplier;
++    FLOAT AdaptationJitterBetweenFrames;
++    FLOAT MotionBlurSoftEdgeKernelSize;
+     FLOAT SceneImageGrainScale;
+     FLOAT BloomWeightSmall;
+     FLOAT BloomWeightMedium;
+@@ -18842,8 +18955,8 @@ public:
+     FLOAT BloomSizeScaleSmall;
+     FLOAT BloomSizeScaleMedium;
+     FLOAT BloomSizeScaleLarge;
+-    struct FLUTBlender PreviousLUTBlender;
+-    FLOAT SceneHDRTonemapperScale_DEPRECATED;
++    FLUTBlender PreviousLUTBlender;
++    FLOAT SceneHDRTonemapperScale;
+     //## END PROPS UberPostProcessEffect
+ 
+     DECLARE_CLASS(UUberPostProcessEffect,UDOFBloomMotionBlurEffect,0,Engine)
