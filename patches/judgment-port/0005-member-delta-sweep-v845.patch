@@ -1,0 +1,2038 @@
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\EngineAIClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\Engine\\Inc\\EngineAIClasses.h"
+index 964d3f9..4909c84 100644
+--- a/Development/Src/Engine/Inc/EngineAIClasses.h
++++ b/Development/Src/Engine/Inc/EngineAIClasses.h
+@@ -531,9 +531,10 @@ class AEnvironmentVolume : public AVolume, public IInterface_NavMeshPathObstacle
+ {
+ public:
+     //## BEGIN PROPS EnvironmentVolume
++    FPointer VfTable_IInterface_NavMeshPathObstacle;
++    FPointer VfTable_IInterface_NavMeshPathObject;
+     BITFIELD bSplitNavMesh:1;
+-    SCRIPT_ALIGN;
+-    //## END PROPS EnvironmentVolume
++//## END PROPS EnvironmentVolume
+ 
+     void SetSplitNavMesh(UBOOL bNewValue);
+     DECLARE_FUNCTION(execSetSplitNavMesh)
+@@ -650,7 +651,8 @@ class ATestSplittingVolume : public AVolume, public IInterface_NavMeshPathObject
+ {
+ public:
+     //## BEGIN PROPS TestSplittingVolume
+-    //## END PROPS TestSplittingVolume
++    FPointer VfTable_IInterface_NavMeshPathObject;
++//## END PROPS TestSplittingVolume
+ 
+     DECLARE_CLASS(ATestSplittingVolume,AVolume,0,Engine)
+     virtual UObject* GetUObjectInterfaceInterface_NavMeshPathObject(){return this;}
+@@ -713,7 +715,8 @@ class ACrowdAgentBase : public AActor, public IInterface_NavigationHandle
+ {
+ public:
+     //## BEGIN PROPS CrowdAgentBase
+-    //## END PROPS CrowdAgentBase
++    FPointer VfTable_IInterface_NavigationHandle;
++//## END PROPS CrowdAgentBase
+ 
+     void eventNotifyPathChanged()
+     {
+@@ -771,10 +774,10 @@ class ANavMeshObstacle : public AActor, public IInterface_NavMeshPathObstacle
+ {
+ public:
+     //## BEGIN PROPS NavMeshObstacle
++    FPointer VfTable_IInterface_NavMeshPathObstacle;
+     BITFIELD bEnabled:1;
+     BITFIELD bPreserveInternalGeo:1;
+-    SCRIPT_ALIGN;
+-    //## END PROPS NavMeshObstacle
++//## END PROPS NavMeshObstacle
+ 
+     virtual void RegisterObstacle();
+     virtual void UnRegisterObstacle();
+@@ -829,7 +832,8 @@ class APylonSeed : public AActor, public IInterface_NavMeshPathObject
+ {
+ public:
+     //## BEGIN PROPS PylonSeed
+-    //## END PROPS PylonSeed
++    FPointer VfTable_IInterface_NavMeshPathObject;
++//## END PROPS PylonSeed
+ 
+     DECLARE_CLASS(APylonSeed,AActor,0,Engine)
+     virtual UObject* GetUObjectInterfaceInterface_NavMeshPathObject(){return this;}
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\EngineAnimClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\Engine\\Inc\\EngineAnimClasses.h"
+index 21c99f3..9c52cd0 100644
+--- a/Development/Src/Engine/Inc/EngineAnimClasses.h
++++ b/Development/Src/Engine/Inc/EngineAnimClasses.h
+@@ -256,7 +256,7 @@ public:
+     BITFIELD bDamageAppliesImpulse:1;
+     BITFIELD bShouldDoAnimNotifies:1;
+     BITFIELD bForceSaveInCheckpoint:1;
+-    BITFIELD bCollideActors_OldValue_DEPRECATED:1;
++    BITFIELD bCollideActors_OldValue:1;
+     BITFIELD bShouldShadowParentAllAttachedActors:1;
+     class USkeletalMeshComponent* SkeletalMeshComponent;
+     class ULightEnvironmentComponent* LightEnvironment;
+@@ -268,7 +268,7 @@ public:
+     TArrayNoInit<class UInterpGroup*> InterpGroupList;
+     FName SavedAnimSeqName;
+     FLOAT SavedCurrentTime;
+-    //## END PROPS SkeletalMeshActor
++//## END PROPS SkeletalMeshActor
+ 
+     virtual void UpdateAnimSetList();
+     virtual void MAT_BeginAnimControl(class UInterpGroup* InInterpGroup);
+@@ -675,7 +675,7 @@ public:
+     FName SequenceName;
+     TArrayNoInit<struct FAnimNotifyEvent> Notifies;
+     TArrayNoInit<class UAnimMetaData*> MetaData;
+-    TArrayNoInit<struct FSkelControlModifier> BoneControlModifiers_DEPRECATED;
++    TArrayNoInit<struct FSkelControlModifier> BoneControlModifiers;
+     FLOAT SequenceLength;
+     INT NumFrames;
+     FLOAT RateScale;
+@@ -684,14 +684,12 @@ public:
+     BITFIELD bAdditiveBuiltLooping:1;
+     BITFIELD bDoNotOverrideCompression:1;
+     BITFIELD bHasBeenUsed:1;
+-    TArrayNoInit<FRawAnimSequenceTrack> RawAnimData_DEPRECATED;
++    TArrayNoInit<FRawAnimSequenceTrack> RawAnimData;
+     TArrayNoInit<FRawAnimSequenceTrack> RawAnimationData;
+     TArrayNoInit<struct FTranslationTrack> TranslationData;
+     TArrayNoInit<struct FRotationTrack> RotationData;
+     TArrayNoInit<struct FCurveTrack> CurveData;
+-#if WITH_EDITORONLY_DATA
+     class UAnimationCompressionAlgorithm* CompressionScheme;
+-#endif // WITH_EDITORONLY_DATA
+     BYTE TranslationCompressionFormat;
+     BYTE RotationCompressionFormat;
+     BYTE KeyEncodingFormat;
+@@ -699,23 +697,17 @@ public:
+     TArrayNoInit<BYTE> CompressedByteStream;
+     FPointer TranslationCodec;
+     FPointer RotationCodec;
+-    TArrayNoInit<FBoneAtom> AdditiveRefPose_DEPRECATED;
++    TArrayNoInit<FBoneAtom> AdditiveRefPose;
+     TArrayNoInit<FRawAnimSequenceTrack> AdditiveBasePose;
+-#if WITH_EDITORONLY_DATA
+     FName AdditiveRefName;
+     TArrayNoInit<class UAnimSequence*> AdditiveBasePoseAnimSeq;
+     TArrayNoInit<class UAnimSequence*> AdditiveTargetPoseAnimSeq;
+     TArrayNoInit<class UAnimSequence*> RelatedAdditiveAnimSeqs;
+-#endif // WITH_EDITORONLY_DATA
+     INT EncodingPkgVersion;
+-#if WITH_EDITORONLY_DATA
+     INT CompressCommandletVersion;
+-#endif // WITH_EDITORONLY_DATA
+     FLOAT UseScore;
+-#if WITH_EDITORONLY_DATA
+     TArrayNoInit<struct FAnimTag> AnimTags;
+-#endif // WITH_EDITORONLY_DATA
+-    //## END PROPS AnimSequence
++//## END PROPS AnimSequence
+ 
+     virtual FLOAT GetNotifyTimeByClass(class UClass* NotifyClass,FLOAT PlayRate=1.000000,FLOAT StartPosition=-1.000000,class UAnimNotify** out_Notify=NULL,FLOAT* out_Duration=NULL);
+     DECLARE_FUNCTION(execGetNotifyTimeByClass)
+@@ -1451,8 +1443,8 @@ public:
+     //## BEGIN PROPS AnimMetaData_SkelControl
+     TArrayNoInit<FName> SkelControlNameList;
+     BITFIELD bFullControlOverController:1;
+-    FName SkelControlName_DEPRECATED;
+-    //## END PROPS AnimMetaData_SkelControl
++    FName SkelControlName;
++//## END PROPS AnimMetaData_SkelControl
+ 
+     DECLARE_CLASS(UAnimMetaData_SkelControl,UAnimMetaData,0,Engine)
+ 	virtual void PostLoad();
+@@ -1791,14 +1783,14 @@ public:
+     FName SecondEdgeSocketName;
+     FLOAT LastStartTime;
+     FLOAT EndTime;
+-    FLOAT SampleTimeStep_DEPRECATED;
+-    TArrayNoInit<struct FTrailSamplePoint> TrailSampleData_DEPRECATED;
++    FLOAT SampleTimeStep;
++    TArrayNoInit<struct FTrailSamplePoint> TrailSampleData;
+     FLOAT SamplesPerSecond;
+     TArrayNoInit<struct FTrailSample> TrailSampledData;
+     FLOAT CurrentTime;
+     FLOAT TimeStep;
+     class UAnimNodeSequence* AnimNodeSeq;
+-    //## END PROPS AnimNotify_Trails
++//## END PROPS AnimNotify_Trails
+ 
+     virtual INT GetNumSteps(INT InLastTrailIndex) const;
+     DECLARE_FUNCTION(execGetNumSteps)
+@@ -3562,21 +3554,20 @@ public:
+     BITFIELD bParentNodeArrayBuilt:1;
+     BITFIELD bRebuildAnimTickArray:1;
+     TArrayNoInit<struct FAnimGroup> AnimGroups;
+-    TArrayNoInit<FName> PrioritizedSkelBranches_DEPRECATED;
++    TArrayNoInit<FName> PrioritizedSkelBranches;
+     TArrayNoInit<FName> ComposePrePassBoneNames;
+     TArrayNoInit<FName> ComposePostPassBoneNames;
+     TArrayNoInit<class UMorphNodeBase*> RootMorphNodes;
+     TArrayNoInit<struct FSkelControlListHead> SkelControlLists;
+     TArrayNoInit<FBoneAtom> SavedPose;
+-#if WITH_EDITORONLY_DATA
+     INT MorphConnDrawY;
+     FLOAT PreviewPlayRate;
+-    class USkeletalMesh* PreviewSkelMesh_DEPRECATED;
+-    class USkeletalMesh* SocketSkelMesh_DEPRECATED;
+-    class UStaticMesh* SocketStaticMesh_DEPRECATED;
+-    FName SocketName_DEPRECATED;
+-    TArrayNoInit<class UAnimSet*> PreviewAnimSets_DEPRECATED;
+-    TArrayNoInit<class UMorphTargetSet*> PreviewMorphSets_DEPRECATED;
++    class USkeletalMesh* PreviewSkelMesh;
++    class USkeletalMesh* SocketSkelMesh;
++    class UStaticMesh* SocketStaticMesh;
++    FName SocketName;
++    TArrayNoInit<class UAnimSet*> PreviewAnimSets;
++    TArrayNoInit<class UMorphTargetSet*> PreviewMorphSets;
+     TArrayNoInit<struct FPreviewSkelMeshStruct> PreviewMeshList;
+     INT PreviewMeshIndex;
+     TArrayNoInit<struct FPreviewSocketStruct> PreviewSocketList;
+@@ -3588,9 +3579,8 @@ public:
+     FRotator PreviewCamRot;
+     FVector PreviewFloorPos;
+     INT PreviewFloorYaw;
+-#endif // WITH_EDITORONLY_DATA
+     TArrayNoInit<class UAnimNode*> AnimTickArray;
+-    //## END PROPS AnimTree
++//## END PROPS AnimTree
+ 
+     class USkelControlBase* FindSkelControl(FName InControlName);
+     class UMorphNodeBase* FindMorphNode(FName InNodeName);
+@@ -4165,7 +4155,6 @@ public:
+     FLOAT BlendInTime;
+     FLOAT BlendOutTime;
+     BYTE BlendType;
+-    SCRIPT_ALIGN;
+     BITFIELD bPostPhysicsController:1;
+     BITFIELD bSetStrengthFromAnimNode:1;
+     BITFIELD bInitializedCachedNodeList:1;
+@@ -4175,7 +4164,7 @@ public:
+     BITFIELD bIgnoreWhenNotRendered:1;
+     BITFIELD bShouldTickInScript:1;
+     BITFIELD bShouldTickOwner:1;
+-    BITFIELD bEnableEaseInOut_DEPRECATED:1;
++    BITFIELD bEnableEaseInOut:1;
+     FLOAT StrengthTarget;
+     FLOAT BlendTimeToGo;
+     TArrayNoInit<FName> StrengthAnimNodeNameList;
+@@ -4186,9 +4175,9 @@ public:
+     INT ControlTickTag;
+     INT IgnoreAtOrAboveLOD;
+     class USkelControlBase* NextControl;
+-    INT ControlPosX_DEPRECATED;
+-    INT ControlPosY_DEPRECATED;
+-    //## END PROPS SkelControlBase
++    INT ControlPosX;
++    INT ControlPosY;
++//## END PROPS SkelControlBase
+ 
+     void SetSkelControlActive(UBOOL bInActive);
+     void SetSkelControlStrength(FLOAT NewStrength,FLOAT InBlendTime);
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\EngineCameraClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\Engine\\Inc\\EngineCameraClasses.h"
+index aebc207..5c9a580 100644
+--- a/Development/Src/Engine/Inc/EngineCameraClasses.h
++++ b/Development/Src/Engine/Inc/EngineCameraClasses.h
+@@ -267,14 +267,14 @@ class ACameraActor : public AActor
+ public:
+     //## BEGIN PROPS CameraActor
+     BITFIELD bConstrainAspectRatio:1;
+-    BITFIELD bCamOverridePostProcess_DEPRECATED:1;
++    BITFIELD bCamOverridePostProcess:1;
+     FLOAT AspectRatio;
+     FLOAT FOVAngle;
+     FLOAT CamOverridePostProcessAlpha;
+     struct FPostProcessSettings CamOverridePostProcess;
+     class UDrawFrustumComponent* DrawFrustum;
+     class UStaticMeshComponent* MeshComp;
+-    //## END PROPS CameraActor
++//## END PROPS CameraActor
+ 
+     DECLARE_CLASS(ACameraActor,AActor,0,Engine)
+ 	// UObject interface
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\EngineClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\Engine\\Inc\\EngineClasses.h"
+index 20da755..af2b8f4 100644
+--- a/Development/Src/Engine/Inc/EngineClasses.h
++++ b/Development/Src/Engine/Inc/EngineClasses.h
+@@ -2178,9 +2178,7 @@ public:
+     FLOAT DrawScale;
+     FVector DrawScale3D;
+     FVector PrePivot;
+-#if WITH_EDITORONLY_DATA
+     FColor EditorIconColor;
+-#endif // WITH_EDITORONLY_DATA
+     FRenderCommandFence DetachFence;
+     FLOAT CustomTimeDilation;
+     BYTE Physics;
+@@ -2192,17 +2190,13 @@ public:
+     class AActor* Owner;
+     class AActor* Base;
+     TArrayNoInit<struct FTimerData> Timers;
+-private:
+     BITFIELD bStatic:1;
+-public:
+     BITFIELD bHidden:1;
+     BITFIELD bNoDelete:1;
+     BITFIELD bDeleteMe:1;
+     BITFIELD bTicked:1;
+     BITFIELD bOnlyOwnerSee:1;
+-private:
+     BITFIELD bTickIsDisabled:1;
+-public:
+     BITFIELD bWorldGeometry:1;
+     BITFIELD bIgnoreRigidBodyPawns:1;
+     BITFIELD bOrientOnSlope:1;
+@@ -2276,7 +2270,7 @@ public:
+     BITFIELD bNetOwner:1;
+     BITFIELD bHiddenEd:1;
+     BITFIELD bEditable:1;
+-    BITFIELD bHiddenEdGroup_DEPRECATED:1;
++    BITFIELD bHiddenEdGroup:1;
+     BITFIELD bHiddenEdLayer:1;
+     BITFIELD bHiddenEdCustom:1;
+     BITFIELD bHiddenEdTemporary:1;
+@@ -2303,7 +2297,7 @@ public:
+     FName Tag;
+     FName InitialState;
+     FName Layer;
+-    FName Group_DEPRECATED;
++    FName Group;
+     QWORD HiddenEditorViews;
+     TArrayNoInit<class AActor*> Touching;
+     TArrayNoInit<class AActor*> Children;
+@@ -2326,7 +2320,7 @@ public:
+     TArrayNoInit<class UClass*> SupportedEvents;
+     TArrayNoInit<class USequenceEvent*> GeneratedEvents;
+     TArrayNoInit<class USeqAct_Latent*> LatentActions;
+-    //## END PROPS Actor
++//## END PROPS Actor
+ 
+     virtual void ForceUpdateComponents(UBOOL bCollisionUpdate=FALSE,UBOOL bTransformOnly=TRUE);
+     virtual FString ConsoleCommand(const FString& Command,UBOOL bWriteToLog=TRUE);
+@@ -4742,11 +4736,10 @@ public:
+     BITFIELD bEditorPreVisOnly:1;
+     BITFIELD bDisabled:1;
+     BITFIELD bTestDistanceToVolume:1;
+-    SCRIPT_ALIGN;
+     BYTE StreamingUsage;
+-    BYTE Usage_DEPRECATED;
++    BYTE Usage;
+     FLOAT TestVolumeDistance;
+-    //## END PROPS LevelStreamingVolume
++//## END PROPS LevelStreamingVolume
+ 
+     DECLARE_CLASS(ALevelStreamingVolume,AVolume,0,Engine)
+ 	// UObject interace.
+@@ -7259,6 +7252,7 @@ class APylon : public ANavigationPoint, public IEditorLinkSelectionInterface
+ {
+ public:
+     //## BEGIN PROPS Pylon
++    FPointer VfTable_IEditorLinkSelectionInterface;
+     class UNavigationMeshBase* NavMeshPtr;
+     class UNavigationMeshBase* ObstacleMesh;
+     class UNavigationMeshBase* DynamicObstacleMesh;
+@@ -7275,10 +7269,6 @@ public:
+     BITFIELD bImportedMesh:1;
+     BITFIELD bUseExpansionSphereOverride:1;
+     BITFIELD bNeedsCostCheck:1;
+-    // Judgment (v845) declares two extra Pylon bools here for its Recast navmesh
+-    // generator.  They fit inside the existing bitfield DWORD, so the struct size
+-    // is unchanged; they exist so script property offsets line up with the native
+-    // layout.  See ENGINE-CLASS-DELTA.md.
+     BITFIELD bUseRecast:1;
+     BITFIELD bAllowRecastGenerator:1;
+     BITFIELD bDrawEdgePolys:1;
+@@ -7289,7 +7279,6 @@ public:
+     BITFIELD bBuildThisPylon:1;
+     BITFIELD bDisabled:1;
+     BITFIELD bForceObstacleMeshCollision:1;
+-    SCRIPT_ALIGN;
+     FVector ExpansionSphereCenter;
+     class UNavMeshRenderingComponent* RenderingComp;
+     class USpriteComponent* BrokenSprite;
+@@ -7297,15 +7286,11 @@ public:
+     TArrayNoInit<class AActor*> OnBuild_DisableCollisionForThese;
+     TArrayNoInit<class AActor*> OnBuild_EnableCollisionForThese;
+     FLOAT MaxPolyHeight_Optional;
+-    // Judgment (v845) Recast voxel-filter members.  Declaration order here is the
+-    // reverse of the package export order, matching how this header is generated.
+-    // TArrayNoInit is a fixed 12 bytes regardless of element type, so the exact
+-    // inner struct does not affect property offsets.
+     BYTE NavMeshGenerator;
+     TArrayNoInit<FBox> VoxelFilterBounds;
+     TArrayNoInit<FMatrix> VoxelFilterTM;
+     INT DebugEdgeCount;
+-    //## END PROPS Pylon
++//## END PROPS Pylon
+ 
+     virtual void OnPylonStatusChange();
+     virtual UBOOL CanReachPylon(class APylon* DestPylon,class AController* C);
+@@ -10132,6 +10117,7 @@ class UOnlineSubsystem : public UObject, public FTickableObject
+ {
+ public:
+     //## BEGIN PROPS OnlineSubsystem
++    FPointer VfTable_FTickableObject;
+     TScriptInterface<class IInterface> AccountInterface;
+     TScriptInterface<class IInterface> PlayerInterface;
+     TScriptInterface<class IInterface> PlayerInterfaceEx;
+@@ -10151,7 +10137,7 @@ public:
+     FStringNoInit IniLocPatcherClassName;
+     class UIniLocPatcher* Patcher;
+     FLOAT AsyncMinCompletionTime;
+-    //## END PROPS OnlineSubsystem
++//## END PROPS OnlineSubsystem
+ 
+     virtual UBOOL Init();
+     virtual INT GetBuildUniqueId();
+@@ -11066,11 +11052,12 @@ class ARoute : public AInfo, public IEditorLinkSelectionInterface
+ {
+ public:
+     //## BEGIN PROPS Route
++    FPointer VfTable_IEditorLinkSelectionInterface;
+     BYTE RouteType;
+     TArrayNoInit<struct FActorReference> RouteList;
+     FLOAT FudgeFactor;
+     INT RouteIndexOffset;
+-    //## END PROPS Route
++//## END PROPS Route
+ 
+     INT ResolveRouteIndex(INT Idx,BYTE RouteDirection,BYTE& out_bComplete,BYTE& out_bReverse);
+     INT MoveOntoRoutePath(class APawn* P,BYTE RouteDirection=0,FLOAT DistFudgeFactor=1.000000);
+@@ -12607,10 +12594,10 @@ public:
+     //## BEGIN PROPS WindDirectionalSourceComponent
+     FWindSourceSceneProxy* SceneProxy;
+     FLOAT Strength;
+-    FLOAT Phase_DEPRECATED;
+-    FLOAT Frequency_DEPRECATED;
++    FLOAT Phase;
++    FLOAT Frequency;
+     FLOAT Speed;
+-    //## END PROPS WindDirectionalSourceComponent
++//## END PROPS WindDirectionalSourceComponent
+ 
+     DECLARE_CLASS(UWindDirectionalSourceComponent,UActorComponent,0,Engine)
+ protected:
+@@ -12663,12 +12650,11 @@ public:
+     class UClass* GameplayActorClass;
+     FStringNoInit MenuName;
+     INT MenuPriority;
+-    INT AlternateMenuPriority_DEPRECATED;
++    INT AlternateMenuPriority;
+     class UClass* NewActorClass;
+     BITFIELD bPlaceable:1;
+     BITFIELD bShowInEditorQuickMenu:1;
+-    SCRIPT_ALIGN;
+-    //## END PROPS ActorFactory
++//## END PROPS ActorFactory
+ 
+     void eventPostCreateActor(class AActor* NewActor)
+     {
+@@ -16429,6 +16415,8 @@ class UGameViewportClient : public UObject, public FViewportClient, public FExec
+ {
+ public:
+     //## BEGIN PROPS GameViewportClient
++    FPointer VfTable_FViewportClient;
++    FPointer VfTable_FExec;
+     FViewport* Viewport;
+     FViewportFrame* ViewportFrame;
+     TArray<class UInteraction*> GlobalInteractions;
+@@ -16450,13 +16438,10 @@ public:
+     BITFIELD bDisableWorldRendering:1;
+     BITFIELD bDebugNoGFxUI:1;
+     BITFIELD bUseHardwareCursorWhenWindowed:1;
+-    SCRIPT_ALIGN;
+     struct FTitleSafeZoneArea TitleSafeZone;
+     TArrayNoInit<struct FSplitscreenData> SplitscreenInfo;
+-protected:
+     BYTE DesiredSplitscreenType;
+     BYTE ActiveSplitscreenType;
+-public:
+     BYTE Default2PSplitType;
+     BYTE Default3PSplitType;
+     FStringNoInit ProgressMessage[2];
+@@ -16467,7 +16452,7 @@ public:
+     FScriptDelegate __HandleInputKey__Delegate;
+     FScriptDelegate __HandleInputAxis__Delegate;
+     FScriptDelegate __HandleInputChar__Delegate;
+-    //## END PROPS GameViewportClient
++//## END PROPS GameViewportClient
+ 
+     virtual FString ConsoleCommand(const FString& Command);
+     void GetViewportSize(FVector2D& out_ViewportSize);
+@@ -17405,12 +17390,10 @@ class UMaterialExpression : public UObject
+ {
+ public:
+     //## BEGIN PROPS MaterialExpression
+-    INT EditorX_DEPRECATED;
+-    INT EditorY_DEPRECATED;
+-#if WITH_EDITORONLY_DATA
++    INT EditorX;
++    INT EditorY;
+     INT MaterialExpressionEditorX;
+     INT MaterialExpressionEditorY;
+-#endif // WITH_EDITORONLY_DATA
+     BITFIELD bRealtimePreview:1;
+     BITFIELD bNeedToUpdatePreview:1;
+     BITFIELD bIsParameterExpression:1;
+@@ -17420,7 +17403,7 @@ public:
+     class UMaterialExpressionCompound* Compound;
+     FStringNoInit Desc;
+     TArrayNoInit<FName> MenuCategories;
+-    //## END PROPS MaterialExpression
++//## END PROPS MaterialExpression
+ 
+     DECLARE_ABSTRACT_CLASS(UMaterialExpression,UObject,0,Engine)
+     DECLARE_WITHIN(UMaterial)
+@@ -18484,6 +18467,7 @@ class UPlayer : public UObject, public FExec
+ {
+ public:
+     //## BEGIN PROPS Player
++    FPointer VfTable_FExec;
+     class APlayerController* Actor;
+     INT CurrentNetSpeed;
+     INT ConfiguredInternetSpeed;
+@@ -18492,7 +18476,7 @@ public:
+     FLOAT PP_HighlightsMultiplier;
+     FLOAT PP_MidTonesMultiplier;
+     FLOAT PP_ShadowsMultiplier;
+-    //## END PROPS Player
++//## END PROPS Player
+ 
+     virtual void SwitchController(class APlayerController* PC);
+     DECLARE_FUNCTION(execSwitchController)
+@@ -18758,10 +18742,10 @@ public:
+     FLOAT OcclusionScale;
+     FLOAT OcclusionBias;
+     FLOAT MinOcclusion;
+-    BITFIELD SSAO2_DEPRECATED:1;
++    BITFIELD SSAO2:1;
+     BITFIELD bAngleBasedSSAO:1;
+     FLOAT OcclusionRadius;
+-    FLOAT OcclusionAttenuation_DEPRECATED;
++    FLOAT OcclusionAttenuation;
+     BYTE OcclusionQuality;
+     FLOAT OcclusionFadeoutMinDistance;
+     FLOAT OcclusionFadeoutMaxDistance;
+@@ -18771,10 +18755,10 @@ public:
+     FLOAT EdgeDistanceThreshold;
+     FLOAT EdgeDistanceScale;
+     FLOAT FilterDistanceScale;
+-    INT FilterSize_DEPRECATED;
++    INT FilterSize;
+     FLOAT HistoryConvergenceTime;
+     FLOAT HistoryWeightConvergenceTime;
+-    //## END PROPS AmbientOcclusionEffect
++//## END PROPS AmbientOcclusionEffect
+ 
+     DECLARE_CLASS(UAmbientOcclusionEffect,UPostProcessEffect,0,Engine)
+     // UPostProcessEffect interface
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\EngineControllerClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\Engine\\Inc\\EngineControllerClasses.h"
+index ecb457a..e6da3c7 100644
+--- a/Development/Src/Engine/Inc/EngineControllerClasses.h
++++ b/Development/Src/Engine/Inc/EngineControllerClasses.h
+@@ -348,6 +348,7 @@ class AController : public AActor, public IInterface_NavigationHandle
+ {
+ public:
+     //## BEGIN PROPS Controller
++    FPointer VfTable_IInterface_NavigationHandle;
+     class APawn* Pawn;
+     class APlayerReplicationInfo* PlayerReplicationInfo;
+     INT PlayerNum;
+@@ -371,7 +372,6 @@ public:
+     BITFIELD bPreciseDestination:1;
+     BITFIELD bSeeFriendly:1;
+     BITFIELD bUsingPathLanes:1;
+-    SCRIPT_ALIGN;
+     BYTE bFire;
+     BYTE bAltFire;
+     FLOAT MinHitWall;
+@@ -414,7 +414,7 @@ public:
+     FLOAT LaneOffset;
+     FRotator OldBasedRotation;
+     FVector NavMeshPath_SearchExtent_Modifier;
+-    //## END PROPS Controller
++//## END PROPS Controller
+ 
+     virtual UBOOL IsLocalPlayerController();
+     virtual UBOOL IsLocalController();
+@@ -1780,7 +1780,7 @@ public:
+     FLOAT MaxTimeMargin;
+     FLOAT LastActiveTime;
+     INT ClientCap;
+-    FLOAT DynamicPingThreshold_DEPRECATED;
++    FLOAT DynamicPingThreshold;
+     FLOAT LastPingUpdate;
+     FLOAT LastSpeedHackLog;
+     struct FClientAdjustment PendingAdjustment;
+@@ -1822,7 +1822,7 @@ public:
+     FScriptDelegate __OnMissingPeersUnregistered__Delegate;
+     FScriptDelegate __CanUnpause__Delegate;
+     FScriptDelegate __InputMatchDelegate__Delegate;
+-    //## END PROPS PlayerController
++//## END PROPS PlayerController
+ 
+     void SetNetSpeed(INT NewSpeed);
+     FString GetPlayerNetworkAddress();
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\EngineInterpolationClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\Engine\\Inc\\EngineInterpolationClasses.h"
+index 0f53504..989f8b6 100644
+--- a/Development/Src/Engine/Inc/EngineInterpolationClasses.h
++++ b/Development/Src/Engine/Inc/EngineInterpolationClasses.h
+@@ -175,6 +175,7 @@ class UInterpGroup : public UObject, public FInterpEdInputInterface
+ {
+ public:
+     //## BEGIN PROPS InterpGroup
++    FPointer VfTable_FInterpEdInputInterface;
+     TArrayNoInit<class UInterpTrack*> InterpTracks;
+     FName GroupName;
+     FColor GroupColor;
+@@ -184,8 +185,7 @@ public:
+     BITFIELD bIsFolder:1;
+     BITFIELD bIsParented:1;
+     BITFIELD bIsSelected:1;
+-    SCRIPT_ALIGN;
+-    //## END PROPS InterpGroup
++//## END PROPS InterpGroup
+ 
+     DECLARE_CLASS(UInterpGroup,UObject,0,Engine)
+ 	// UObject interface
+@@ -883,11 +883,10 @@ class UInterpTrackFloatMaterialParam : public UInterpTrackFloatBase
+ public:
+     //## BEGIN PROPS InterpTrackFloatMaterialParam
+     TArrayNoInit<struct FMaterialReferenceList> Materials;
+-    class UMaterialInterface* Material_DEPRECATED;
++    class UMaterialInterface* Material;
+     FName ParamName;
+     BITFIELD bNeedsMaterialRefsUpdate:1;
+-    SCRIPT_ALIGN;
+-    //## END PROPS InterpTrackFloatMaterialParam
++//## END PROPS InterpTrackFloatMaterialParam
+ 
+     DECLARE_CLASS(UInterpTrackFloatMaterialParam,UInterpTrackFloatBase,0,Engine)
+ 	virtual void PreSave();
+@@ -1827,11 +1826,10 @@ class UInterpTrackVectorMaterialParam : public UInterpTrackVectorBase
+ public:
+     //## BEGIN PROPS InterpTrackVectorMaterialParam
+     TArrayNoInit<struct FMaterialReferenceList> Materials;
+-    class UMaterialInterface* Material_DEPRECATED;
++    class UMaterialInterface* Material;
+     FName ParamName;
+     BITFIELD bNeedsMaterialRefsUpdate:1;
+-    SCRIPT_ALIGN;
+-    //## END PROPS InterpTrackVectorMaterialParam
++//## END PROPS InterpTrackVectorMaterialParam
+ 
+     DECLARE_CLASS(UInterpTrackVectorMaterialParam,UInterpTrackVectorBase,0,Engine)
+ 	virtual void PreSave();
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\EngineMaterialClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\Engine\\Inc\\EngineMaterialClasses.h"
+index 0c80478..72d30a8 100644
+--- a/Development/Src/Engine/Inc/EngineMaterialClasses.h
++++ b/Development/Src/Engine/Inc/EngineMaterialClasses.h
+@@ -2568,17 +2568,13 @@ class UMaterialInterface : public USurface
+ public:
+     //## BEGIN PROPS MaterialInterface
+     FRenderCommandFence ParentRefFence;
+-protected:
+     struct FLightmassMaterialInterfaceSettings LightmassSettings;
+-public:
+-#if WITH_EDITORONLY_DATA
+     FStringNoInit PreviewMesh;
+     FGuid LightingGuid;
+-#endif // WITH_EDITORONLY_DATA
+     BITFIELD bAutoFlattenMobile:1;
+     BITFIELD bMobileAllowFog:1;
+     BITFIELD bUseMobileSpecular:1;
+-    BITFIELD bUseMobileVertexSpecular_DEPRECATED:1;
++    BITFIELD bUseMobileVertexSpecular:1;
+     BITFIELD bUseMobilePixelSpecular:1;
+     BITFIELD bUseMobileBumpOffset:1;
+     BITFIELD bLockColorBlending:1;
+@@ -2587,7 +2583,7 @@ public:
+     BITFIELD bUseMobileTextureTransform:1;
+     BITFIELD bUseMobileWaveVertexMovement:1;
+     class UTexture* MobileBaseTexture;
+-    class UTexture* FlattenedTexture_DEPRECATED;
++    class UTexture* FlattenedTexture;
+     BYTE MobileBaseTextureTexCoordsSource;
+     BYTE MobileAmbientOcclusionSource;
+     BYTE MobileSpecularMask;
+@@ -2633,7 +2629,7 @@ public:
+     FLOAT MobileMaxVertexMovementAmplitude;
+     FLOAT MobileSwayFrequencyMultiplier;
+     FLOAT MobileSwayMaxAngle;
+-    //## END PROPS MaterialInterface
++//## END PROPS MaterialInterface
+ 
+     virtual UBOOL GetParameterDesc(FName ParameterName,FString& OutDesc);
+     virtual UBOOL GetFontParameterValue(FName ParameterName,class UFont*& OutFontValue,INT& OutFontPage);
+@@ -3100,7 +3096,6 @@ public:
+     BYTE BlendMode;
+     BYTE LightingModel;
+     BYTE D3D11TessellationMode;
+-    SCRIPT_ALIGN;
+     FColorMaterialInput CustomLighting;
+     FColorMaterialInput CustomSkylightDiffuse;
+     FVectorMaterialInput AnisotropicDirection;
+@@ -3156,7 +3151,7 @@ public:
+     BITFIELD Wireframe:1;
+     BITFIELD bPerPixelCameraVector:1;
+     BITFIELD bAllowLightmapSpecular:1;
+-    BITFIELD bIsFallbackMaterial_DEPRECATED:1;
++    BITFIELD bIsFallbackMaterial:1;
+     BITFIELD bUsesDistortion:1;
+     BITFIELD bIsMasked:1;
+     BITFIELD bIsPreviewMaterial:1;
+@@ -3168,16 +3163,12 @@ public:
+     INT EditorPitch;
+     INT EditorYaw;
+     TArrayNoInit<class UMaterialExpression*> Expressions;
+-#if WITH_EDITORONLY_DATA
+     TArrayNoInit<class UMaterialExpressionComment*> EditorComments;
+     TArrayNoInit<class UMaterialExpressionCompound*> EditorCompounds;
+-#endif // WITH_EDITORONLY_DATA
+     TMap< FName, TArray<UMaterialExpression*> > EditorParameters;
+-    TArrayNoInit<class UTexture*> ReferencedTextures_DEPRECATED;
+-#if WITH_EDITORONLY_DATA
++    TArrayNoInit<class UTexture*> ReferencedTextures;
+     TArrayNoInit<FGuid> ReferencedTextureGuids;
+-#endif // WITH_EDITORONLY_DATA
+-    //## END PROPS Material
++//## END PROPS Material
+ 
+     DECLARE_CLASS(UMaterial,UMaterialInterface,0,Engine)
+ 	// Constructor.
+@@ -3431,7 +3422,7 @@ public:
+ 
+ 	UBOOL IsFallbackMaterial() 
+ 	{ 
+-		return bIsFallbackMaterial_DEPRECATED; 
++		return bIsFallbackMaterial; 
+ 	}
+ 
+ 	/**
+@@ -3680,16 +3671,13 @@ public:
+     BITFIELD bStaticPermutationDirty:1;
+     BITFIELD ReentrantFlag:1;
+     BITFIELD bNeedsMaterialFlattening:1;
+-    SCRIPT_ALIGN;
+     FStaticParameterSet* StaticParameters[2];
+     FMaterialResource* StaticPermutationResources[2];
+     class FMaterialInstanceResource* Resources[3];
+-    TArrayNoInit<class UTexture*> ReferencedTextures_DEPRECATED;
+-#if WITH_EDITORONLY_DATA
++    TArrayNoInit<class UTexture*> ReferencedTextures;
+     TArrayNoInit<FGuid> ReferencedTextureGuids;
+-#endif // WITH_EDITORONLY_DATA
+     FGuid ParentLightingGuid;
+-    //## END PROPS MaterialInstance
++//## END PROPS MaterialInstance
+ 
+     virtual void SetParent(class UMaterialInterface* NewParent);
+     virtual void SetVectorParameterValue(FName ParameterName,const FLinearColor& Value);
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\EngineMeshClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\Engine\\Inc\\EngineMeshClasses.h"
+index 9ee74c7..2e527fa 100644
+--- a/Development/Src/Engine/Inc/EngineMeshClasses.h
++++ b/Development/Src/Engine/Inc/EngineMeshClasses.h
+@@ -1048,9 +1048,9 @@ class AImageReflection : public AActor
+ public:
+     //## BEGIN PROPS ImageReflection
+     BITFIELD bEnabled:1;
+-    class UDEPRECATED_ImageReflectionComponent* ReflectionComponent_DEPRECATED;
++    class UDEPRECATED_ImageReflectionComponent* ReflectionComponent;
+     class UImageBasedReflectionComponent* ImageReflectionComponent;
+-    //## END PROPS ImageReflection
++//## END PROPS ImageReflection
+ 
+     DECLARE_CLASS(AImageReflection,AActor,0,Engine)
+ protected:
+@@ -1445,13 +1445,13 @@ class UInstancedStaticMeshComponent : public UStaticMeshComponent
+ {
+ public:
+     //## BEGIN PROPS InstancedStaticMeshComponent
+-    TArrayNoInit<struct FInstancedStaticMeshInstanceData> PerInstanceData_DEPRECATED;
++    TArrayNoInit<struct FInstancedStaticMeshInstanceData> PerInstanceData;
+     TArrayNoInit<struct FInstancedStaticMeshInstanceData> PerInstanceSMData;
+     INT NumPendingLightmaps;
+     INT ComponentJoinKey;
+     TArrayNoInit<struct FInstancedStaticMeshMappingInfo> CachedMappings;
+     INT InstancingRandomSeed;
+-    //## END PROPS InstancedStaticMeshComponent
++//## END PROPS InstancedStaticMeshComponent
+ 
+     DECLARE_CLASS(UInstancedStaticMeshComponent,UStaticMeshComponent,0,Engine)
+ 	virtual FPrimitiveSceneProxy* CreateSceneProxy();
+@@ -1592,10 +1592,8 @@ class UApexClothingAsset : public UApexAsset
+ public:
+     //## BEGIN PROPS ApexClothingAsset
+     class FIApexAsset* MApexAsset;
+-#if WITH_EDITORONLY_DATA
+     TArrayNoInit<class UMaterialInterface*> Materials;
+-#endif // WITH_EDITORONLY_DATA
+-    class UApexGenericAsset* ApexClothingLibrary_DEPRECATED;
++    class UApexGenericAsset* ApexClothingLibrary;
+     BITFIELD bUseHardwareCloth:1;
+     BITFIELD bFallbackSkinning:1;
+     BITFIELD bSlowStart:1;
+@@ -1609,7 +1607,7 @@ public:
+     FLOAT LodWeightsDistanceWeight;
+     FLOAT LodWeightsBias;
+     FLOAT LodWeightsBenefitsBias;
+-    //## END PROPS ApexClothingAsset
++//## END PROPS ApexClothingAsset
+ 
+     DECLARE_CLASS(UApexClothingAsset,UApexAsset,0,Engine)
+ 	public:
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\EngineParticleClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\Engine\\Inc\\EngineParticleClasses.h"
+index 78a4362..e606aa8 100644
+--- a/Development/Src/Engine/Inc/EngineParticleClasses.h
++++ b/Development/Src/Engine/Inc/EngineParticleClasses.h
+@@ -684,12 +684,10 @@ public:
+     FLOAT WarmupTime;
+     TArrayNoInit<class UParticleEmitter*> Emitters;
+     class UParticleSystemComponent* PreviewComponent;
+-#if WITH_EDITORONLY_DATA
+     FRotator ThumbnailAngle;
+     FLOAT ThumbnailDistance;
+     FLOAT ThumbnailWarmup;
+-#endif // WITH_EDITORONLY_DATA
+-    BITFIELD bLit_DEPRECATED:1;
++    BITFIELD bLit:1;
+     BITFIELD bOrientZAxisTowardCamera:1;
+     BITFIELD bRegenerateLODDuplicate:1;
+     BITFIELD bUseFixedRelativeBoundingBox:1;
+@@ -703,13 +701,10 @@ public:
+     class UInterpCurveEdSetup* CurveEdSetup;
+     FLOAT LODDistanceCheckTime;
+     TArrayNoInit<FLOAT> LODDistances;
+-#if WITH_EDITORONLY_DATA
+     INT EditorLODSetting;
+-#endif // WITH_EDITORONLY_DATA
+     TArrayNoInit<struct FParticleSystemLOD> LODSettings;
+     FBox FixedRelativeBoundingBox;
+     FLOAT SecondsBeforeInactive;
+-#if WITH_EDITORONLY_DATA
+     FStringNoInit FloorMesh;
+     FVector FloorPosition;
+     FRotator FloorRotation;
+@@ -717,14 +712,13 @@ public:
+     FVector FloorScale3D;
+     FColor BackgroundColor;
+     class UTexture2D* ThumbnailImage;
+-#endif // WITH_EDITORONLY_DATA
+     FLOAT Delay;
+     FLOAT DelayLow;
+     FVector MacroUVPosition;
+     FLOAT MacroUVRadius;
+     FBox CustomOcclusionBounds;
+     TArrayNoInit<struct FLODSoloTrack> SoloTracking;
+-    //## END PROPS ParticleSystem
++//## END PROPS ParticleSystem
+ 
+     virtual BYTE GetCurrentLODMethod();
+     virtual INT GetLODLevelCount();
+@@ -5739,15 +5733,14 @@ public:
+     BITFIELD bOverrideMaterial:1;
+     BITFIELD bCameraFacing:1;
+     BITFIELD bApplyParticleRotationAsSpin:1;
+-    SCRIPT_ALIGN;
+     BYTE MeshAlignment;
+     BYTE AxisLockOption;
+-    BYTE CameraFacingUpAxisOption_DEPRECATED;
++    BYTE CameraFacingUpAxisOption;
+     BYTE CameraFacingOption;
+     FLOAT Pitch;
+     FLOAT Roll;
+     FLOAT Yaw;
+-    //## END PROPS ParticleModuleTypeDataMesh
++//## END PROPS ParticleModuleTypeDataMesh
+ 
+     DECLARE_CLASS(UParticleModuleTypeDataMesh,UParticleModuleTypeDataBase,0,Engine)
+ 	virtual void	PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent);
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\EnginePawnClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\Engine\\Inc\\EnginePawnClasses.h"
+index 24b366f..543b752 100644
+--- a/Development/Src/Engine/Inc/EnginePawnClasses.h
++++ b/Development/Src/Engine/Inc/EnginePawnClasses.h
+@@ -295,6 +295,7 @@ class APawn : public AActor, public IInterface_Speaker
+ {
+ public:
+     //## BEGIN PROPS Pawn
++    FPointer VfTable_IInterface_Speaker;
+     FLOAT MaxStepHeight;
+     FLOAT MaxJumpHeight;
+     FLOAT WalkableFloorZ;
+@@ -361,17 +362,14 @@ public:
+     BITFIELD bForceRMVelocity:1;
+     BITFIELD bForceRegularVelocity:1;
+     BITFIELD bPlayedDeath:1;
+-private:
+     BITFIELD bDesiredRotationSet:1;
+     BITFIELD bLockDesiredRotation:1;
+     BITFIELD bUnlockWhenReached:1;
+-public:
+     BITFIELD bNeedsBaseTickedFirst:1;
+     BITFIELD bUsedByMatinee:1;
+     BITFIELD bRootMotionFromInterpCurve:1;
+     BITFIELD bDebugShowCameraLocation:1;
+     BITFIELD bFastAttachedMove:1;
+-    SCRIPT_ALIGN;
+     BYTE WalkingPhysics;
+     BYTE PathSearchType;
+     BYTE RemoteViewPitch;
+@@ -484,7 +482,7 @@ public:
+     FLOAT RootMotionInterpRate;
+     FLOAT RootMotionInterpCurrentTime;
+     FVector RootMotionInterpCurveLastValue;
+-    //## END PROPS Pawn
++//## END PROPS Pawn
+ 
+     UBOOL PickWallAdjust(FVector WallHitNormal,class AActor* HitActor);
+     UBOOL SetDesiredRotation(FRotator TargetDesiredRotation,UBOOL InLockDesiredRotation=FALSE,UBOOL InUnlockWhenReached=FALSE,FLOAT InterpolationTime=-1.000000,UBOOL bResetRotationRate=TRUE);
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\EngineSequenceClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\Engine\\Inc\\EngineSequenceClasses.h"
+index 99bf134..0bda041 100644
+--- a/Development/Src/Engine/Inc/EngineSequenceClasses.h
++++ b/Development/Src/Engine/Inc/EngineSequenceClasses.h
+@@ -1346,13 +1346,13 @@ class USeqAct_CameraFade : public USequenceAction
+ public:
+     //## BEGIN PROPS SeqAct_CameraFade
+     FColor FadeColor;
+-    FVector2D FadeAlpha_DEPRECATED;
++    FVector2D FadeAlpha;
+     FLOAT FadeOpacity;
+     FLOAT FadeTime;
+     BITFIELD bPersistFade:1;
+     FLOAT FadeTimeRemaining;
+     TArrayNoInit<class APlayerController*> CachedPCs;
+-    //## END PROPS SeqAct_CameraFade
++//## END PROPS SeqAct_CameraFade
+ 
+     DECLARE_CLASS(USeqAct_CameraFade,USequenceAction,0,Engine)
+ 	void Activated();
+@@ -1366,7 +1366,7 @@ public:
+     //## BEGIN PROPS SeqAct_CameraLookAt
+     BITFIELD bAffectCamera:1;
+     BITFIELD bAlwaysFocus:1;
+-    BITFIELD bAdjustCamera_DEPRECATED:1;
++    BITFIELD bAdjustCamera:1;
+     BITFIELD bTurnInPlace:1;
+     BITFIELD bIgnoreTrace:1;
+     BITFIELD bAffectHead:1;
+@@ -1376,7 +1376,6 @@ public:
+     BITFIELD bDisableInput:1;
+     BITFIELD bUsedTimer:1;
+     BITFIELD bCheckLineOfSight:1;
+-    SCRIPT_ALIGN;
+     FVector2D InterpSpeedRange;
+     FVector2D InFocusFOV;
+     FName FocusBoneName;
+@@ -1384,7 +1383,7 @@ public:
+     FLOAT TotalTime;
+     FLOAT CameraFOV;
+     FLOAT RemainingTime;
+-    //## END PROPS SeqAct_CameraLookAt
++//## END PROPS SeqAct_CameraLookAt
+ 
+     DECLARE_CLASS(USeqAct_CameraLookAt,USequenceAction,0,Engine)
+ 	void Activated();
+@@ -2458,7 +2457,7 @@ class USeqAct_StreamInTextures : public USeqAct_Latent
+ {
+ public:
+     //## BEGIN PROPS SeqAct_StreamInTextures
+-    BITFIELD bLocationBased_DEPRECATED:1;
++    BITFIELD bLocationBased:1;
+     BITFIELD bStreamingActive:1;
+     BITFIELD bHasTriggeredAllLoaded:1;
+     FLOAT Seconds;
+@@ -2471,7 +2470,7 @@ public:
+     TArrayNoInit<class UMaterialInterface*> CachedForcedMaterials;
+     struct FTextureGroupContainer CinematicTextureGroups;
+     INT SelectedCinematicTextureGroups;
+-    //## END PROPS SeqAct_StreamInTextures
++//## END PROPS SeqAct_StreamInTextures
+ 
+     DECLARE_CLASS(USeqAct_StreamInTextures,USeqAct_Latent,0,Engine)
+ 	void Activated();
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\EngineSoundClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\Engine\\Inc\\EngineSoundClasses.h"
+index 2e277fc..ef6a9a2 100644
+--- a/Development/Src/Engine/Inc/EngineSoundClasses.h
++++ b/Development/Src/Engine/Inc/EngineSoundClasses.h
+@@ -249,8 +249,8 @@ public:
+     //## BEGIN PROPS SoundNodeAmbientNonLoop
+     FLOAT DelayMin;
+     FLOAT DelayMax;
+-    struct FRawDistributionFloat DelayTime_DEPRECATED;
+-    //## END PROPS SoundNodeAmbientNonLoop
++    struct FRawDistributionFloat DelayTime;
++//## END PROPS SoundNodeAmbientNonLoop
+ 
+     DECLARE_CLASS(USoundNodeAmbientNonLoop,USoundNodeAmbient,0,Engine)
+     #include "USoundNodeAmbientNonLoop.h"
+@@ -293,8 +293,8 @@ public:
+     //## BEGIN PROPS SoundNodeDelay
+     FLOAT DelayMin;
+     FLOAT DelayMax;
+-    struct FRawDistributionFloat DelayDuration_DEPRECATED;
+-    //## END PROPS SoundNodeDelay
++    struct FRawDistributionFloat DelayDuration;
++//## END PROPS SoundNodeDelay
+ 
+     DECLARE_CLASS(USoundNodeDelay,USoundNode,0,Engine)
+     #include "USoundNodeDelay.h"
+@@ -336,8 +336,8 @@ public:
+     BITFIELD bLoopIndefinitely:1;
+     FLOAT LoopCountMin;
+     FLOAT LoopCountMax;
+-    struct FRawDistributionFloat LoopCount_DEPRECATED;
+-    //## END PROPS SoundNodeLooping
++    struct FRawDistributionFloat LoopCount;
++//## END PROPS SoundNodeLooping
+ 
+     DECLARE_CLASS(USoundNodeLooping,USoundNode,0,Engine)
+     #include "USoundNodeLooping.h"
+@@ -374,9 +374,9 @@ public:
+     FLOAT PitchMax;
+     FLOAT VolumeMin;
+     FLOAT VolumeMax;
+-    struct FRawDistributionFloat PitchModulation_DEPRECATED;
+-    struct FRawDistributionFloat VolumeModulation_DEPRECATED;
+-    //## END PROPS SoundNodeModulator
++    struct FRawDistributionFloat PitchModulation;
++    struct FRawDistributionFloat VolumeModulation;
++//## END PROPS SoundNodeModulator
+ 
+     DECLARE_CLASS(USoundNodeModulator,USoundNode,0,Engine)
+     #include "USoundNodeModulator.h"
+@@ -408,11 +408,11 @@ public:
+     FLOAT OffsetMax;
+     FLOAT CenterMin;
+     FLOAT CenterMax;
+-    struct FRawDistributionFloat Amplitude_DEPRECATED;
+-    struct FRawDistributionFloat Frequency_DEPRECATED;
+-    struct FRawDistributionFloat Offset_DEPRECATED;
+-    struct FRawDistributionFloat Center_DEPRECATED;
+-    //## END PROPS SoundNodeOscillator
++    struct FRawDistributionFloat Amplitude;
++    struct FRawDistributionFloat Frequency;
++    struct FRawDistributionFloat Offset;
++    struct FRawDistributionFloat Center;
++//## END PROPS SoundNodeOscillator
+ 
+     DECLARE_CLASS(USoundNodeOscillator,USoundNode,0,Engine)
+     #include "USoundNodeOscillator.h"
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\EngineTerrainClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\Engine\\Inc\\EngineTerrainClasses.h"
+index 7d275cd..e651b2a 100644
+--- a/Development/Src/Engine/Inc/EngineTerrainClasses.h
++++ b/Development/Src/Engine/Inc/EngineTerrainClasses.h
+@@ -191,7 +191,7 @@ public:
+     //## BEGIN PROPS Landscape
+     class UMaterialInterface* LandscapeMaterial;
+     INT MaxLODLevel;
+-    TArrayNoInit<FName> LayerNames_DEPRECATED;
++    TArrayNoInit<FName> LayerNames;
+     TArrayNoInit<struct FLandscapeLayerInfo> LayerInfos;
+     FLightmassPrimitiveSettings LightmassSettings;
+     FLOAT StreamingDistanceMultiplier;
+@@ -203,7 +203,7 @@ public:
+     INT SubsectionSizeQuads;
+     INT NumSubsections;
+     TSet<ALandscapeProxy*> Proxies;
+-    //## END PROPS Landscape
++//## END PROPS Landscape
+ 
+     DECLARE_CLASS(ALandscape,ALandscapeProxy,0,Engine)
+ 	// Make a key for XYtoComponentMap
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\EngineTextureClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\Engine\\Inc\\EngineTextureClasses.h"
+index 5dd3d04..dd3f04d 100644
+--- a/Development/Src/Engine/Inc/EngineTextureClasses.h
++++ b/Development/Src/Engine/Inc/EngineTextureClasses.h
+@@ -345,7 +345,7 @@ public:
+     BITFIELD bIsSourceArtUncompressed:1;
+     BITFIELD CompressionNoAlpha:1;
+     BITFIELD CompressionNone:1;
+-    BITFIELD CompressionNoMipmaps_DEPRECATED:1;
++    BITFIELD CompressionNoMipmaps:1;
+     BITFIELD CompressionFullDynamicRange:1;
+     BITFIELD DeferCompression:1;
+     BITFIELD NeverStream:1;
+@@ -368,14 +368,10 @@ public:
+     INT LODBias;
+     INT CachedCombinedLODBias;
+     INT NumCinematicMipLevels;
+-#if WITH_EDITORONLY_DATA
+     FStringNoInit SourceFilePath;
+     FStringNoInit SourceFileTimestamp;
+-#endif // WITH_EDITORONLY_DATA
+     FTextureResource* Resource;
+-#if WITH_EDITORONLY_DATA
+     FGuid LightingGuid;
+-#endif // WITH_EDITORONLY_DATA
+     FLOAT AdjustBrightness;
+     FLOAT AdjustBrightnessCurve;
+     FLOAT AdjustVibrance;
+@@ -383,7 +379,7 @@ public:
+     FLOAT AdjustRGBCurve;
+     FLOAT AdjustHue;
+     INT InternalFormatLODBias;
+-    //## END PROPS Texture
++//## END PROPS Texture
+ 
+     DECLARE_ABSTRACT_CLASS(UTexture,USurface,0,Engine)
+ 	/**
+@@ -957,6 +953,7 @@ class UTextureFlipBook : public UTexture2D, public FTickableObject
+ {
+ public:
+     //## BEGIN PROPS TextureFlipBook
++    FPointer VfTable_FTickableObject;
+     FLOAT TimeIntoMovie;
+     FLOAT TimeSinceLastFrame;
+     FLOAT HorizontalScale;
+@@ -975,7 +972,7 @@ public:
+     FLOAT RenderOffsetU;
+     FLOAT RenderOffsetV;
+     FRenderCommandFence* ReleaseResourcesFence;
+-    //## END PROPS TextureFlipBook
++//## END PROPS TextureFlipBook
+ 
+     virtual void Play();
+     virtual void Pause();
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\EngineUIPrivateClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\Engine\\Inc\\EngineUIPrivateClasses.h"
+index 0e5acbe..cd8d85e 100644
+--- a/Development/Src/Engine/Inc/EngineUIPrivateClasses.h
++++ b/Development/Src/Engine/Inc/EngineUIPrivateClasses.h
+@@ -831,6 +831,7 @@ class UUIDataProvider_OnlineFriendMessages : public UUIDataProvider_OnlinePlayer
+ {
+ public:
+     //## BEGIN PROPS UIDataProvider_OnlineFriendMessages
++    FPointer VfTable_IUIListElementCellProvider;
+     TArrayNoInit<struct FOnlineFriendMessage> Messages;
+     FStringNoInit SendingPlayerNameCol;
+     FStringNoInit bIsFriendInviteCol;
+@@ -838,7 +839,7 @@ public:
+     FStringNoInit bWasDeniedCol;
+     FStringNoInit MessageCol;
+     FStringNoInit LastInviteFrom;
+-    //## END PROPS UIDataProvider_OnlineFriendMessages
++//## END PROPS UIDataProvider_OnlineFriendMessages
+ 
+     DECLARE_CLASS(UUIDataProvider_OnlineFriendMessages,UUIDataProvider_OnlinePlayerDataBase,0|CLASS_Transient|CLASS_Config,Engine)
+     virtual UObject* GetUObjectInterfaceUIListElementCellProvider(){return this;}
+@@ -926,6 +927,7 @@ class UUIDataProvider_OnlineFriends : public UUIDataProvider_OnlinePlayerDataBas
+ {
+ public:
+     //## BEGIN PROPS UIDataProvider_OnlineFriends
++    FPointer VfTable_IUIListElementCellProvider;
+     TArrayNoInit<struct FOnlineFriend> FriendsList;
+     FStringNoInit NickNameCol;
+     FStringNoInit PresenceInfoCol;
+@@ -941,7 +943,7 @@ public:
+     FStringNoInit OnlineText;
+     FStringNoInit AwayText;
+     FStringNoInit BusyText;
+-    //## END PROPS UIDataProvider_OnlineFriends
++//## END PROPS UIDataProvider_OnlineFriends
+ 
+     void eventRefreshFriendsList()
+     {
+@@ -1037,6 +1039,7 @@ class UUIDataProvider_OnlinePartyChatList : public UUIDataProvider_OnlinePlayerD
+ {
+ public:
+     //## BEGIN PROPS UIDataProvider_OnlinePartyChatList
++    FPointer VfTable_IUIListElementCellProvider;
+     TArrayNoInit<struct FOnlinePartyMember> PartyMembersList;
+     TArrayNoInit<FString> NatTypes;
+     FStringNoInit NickNameCol;
+@@ -1046,7 +1049,7 @@ public:
+     FStringNoInit IsTalkingCol;
+     FStringNoInit IsInGameSessionCol;
+     FStringNoInit IsPlayingThisGameCol;
+-    //## END PROPS UIDataProvider_OnlinePartyChatList
++//## END PROPS UIDataProvider_OnlinePartyChatList
+ 
+     void eventRefreshMembersList()
+     {
+@@ -1221,8 +1224,9 @@ class UUIDataProvider_PlayerAchievements : public UUIDataProvider_OnlinePlayerDa
+ {
+ public:
+     //## BEGIN PROPS UIDataProvider_PlayerAchievements
++    FPointer VfTable_IUIListElementCellProvider;
+     TArrayNoInit<struct FAchievementDetails> Achievements;
+-    //## END PROPS UIDataProvider_PlayerAchievements
++//## END PROPS UIDataProvider_PlayerAchievements
+ 
+     INT GetTotalGamerScore() const;
+     INT GetMaxTotalGamerScore() const;
+@@ -1299,12 +1303,14 @@ class UUIDataProvider_OnlinePlayerStorageArray : public UUIDataProvider, public
+ {
+ public:
+     //## BEGIN PROPS UIDataProvider_OnlinePlayerStorageArray
++    FPointer VfTable_IUIListElementProvider;
++    FPointer VfTable_IUIListElementCellProvider;
+     class UOnlinePlayerStorage* PlayerStorage;
+     INT PlayerStorageId;
+     FName PlayerStorageName;
+     FStringNoInit ColumnHeaderText;
+     TArrayNoInit<FName> Values;
+-    //## END PROPS UIDataProvider_OnlinePlayerStorageArray
++//## END PROPS UIDataProvider_OnlinePlayerStorageArray
+ 
+     DECLARE_CLASS(UUIDataProvider_OnlinePlayerStorageArray,UUIDataProvider,0|CLASS_Transient|CLASS_Config,Engine)
+     virtual UObject* GetUObjectInterfaceUIListElementProvider(){return this;}
+@@ -1474,12 +1480,14 @@ class UUIDataProvider_SettingsArray : public UUIDataProvider, public IUIListElem
+ {
+ public:
+     //## BEGIN PROPS UIDataProvider_SettingsArray
++    FPointer VfTable_IUIListElementProvider;
++    FPointer VfTable_IUIListElementCellProvider;
+     class USettings* Settings;
+     INT SettingsId;
+     FName SettingsName;
+     FStringNoInit ColumnHeaderText;
+     TArrayNoInit<struct FIdToStringMapping> Values;
+-    //## END PROPS UIDataProvider_SettingsArray
++//## END PROPS UIDataProvider_SettingsArray
+ 
+     DECLARE_CLASS(UUIDataProvider_SettingsArray,UUIDataProvider,0|CLASS_Transient|CLASS_Config,Engine)
+     virtual UObject* GetUObjectInterfaceUIListElementProvider(){return this;}
+@@ -1807,11 +1815,12 @@ class UUIDataStore_DynamicResource : public UUIDataStore, public IUIListElementP
+ {
+ public:
+     //## BEGIN PROPS UIDataStore_DynamicResource
++    FPointer VfTable_IUIListElementProvider;
+     class UUIDataProvider_OnlineProfileSettings* ProfileProvider;
+     class UUIDataStore_GameResource* GameResourceDataStore;
+     TArrayNoInit<struct FDynamicResourceProviderDefinition> ResourceProviderDefinitions;
+     TMultiMap<FName,class UUIResourceCombinationProvider*> ResourceProviders;
+-    //## END PROPS UIDataStore_DynamicResource
++//## END PROPS UIDataStore_DynamicResource
+ 
+     INT FindProviderTypeIndex(FName ProviderTag) const;
+     FName GenerateProviderAccessTag(INT ProviderIndex,INT InstanceIndex) const;
+@@ -2095,9 +2104,10 @@ class UUIDataStore_GameResource : public UUIDataStore, public IUIListElementProv
+ {
+ public:
+     //## BEGIN PROPS UIDataStore_GameResource
++    FPointer VfTable_IUIListElementProvider;
+     TArrayNoInit<struct FGameResourceDataProvider> ElementProviderTypes;
+     TMultiMap<FName,class UUIResourceDataProvider*> ListElementProviders;
+-    //## END PROPS UIDataStore_GameResource
++//## END PROPS UIDataStore_GameResource
+ 
+     INT FindProviderTypeIndex(FName ProviderTag) const;
+     FName GenerateProviderAccessTag(INT ProviderIndex,INT InstanceIndex) const;
+@@ -2683,13 +2693,15 @@ class UUIDataStore_OnlineGameSearch : public UUIDataStore_Remote, public IUIList
+ {
+ public:
+     //## BEGIN PROPS UIDataStore_OnlineGameSearch
++    FPointer VfTable_IUIListElementProvider;
++    FPointer VfTable_IUIListElementCellProvider;
+     FName SearchResultsName;
+     class UOnlineSubsystem* OnlineSub;
+     TScriptInterface<class IInterface> GameInterface;
+     TArrayNoInit<struct FGameSearchCfg> GameSearchCfgList;
+     INT SelectedIndex;
+     INT ActiveSearchIndex;
+-    //## END PROPS UIDataStore_OnlineGameSearch
++//## END PROPS UIDataStore_OnlineGameSearch
+ 
+     virtual void BuildSearchResults();
+     DECLARE_FUNCTION(execBuildSearchResults)
+@@ -2946,6 +2958,7 @@ class UUIDataStore_OnlinePlayerData : public UUIDataStore_Remote, public IUIList
+ {
+ public:
+     //## BEGIN PROPS UIDataStore_OnlinePlayerData
++    FPointer VfTable_IUIListElementProvider;
+     class UUIDataProvider_OnlineFriends* FriendsProvider;
+     INT PlayerControllerId;
+     FStringNoInit PlayerNick;
+@@ -2970,7 +2983,7 @@ public:
+     FStringNoInit PartyChatProviderClassName;
+     class UClass* PartyChatProviderClass;
+     class UUIDataProvider_OnlinePartyChatList* PartyChatProvider;
+-    //## END PROPS UIDataStore_OnlinePlayerData
++//## END PROPS UIDataStore_OnlinePlayerData
+ 
+     void OnSettingProviderChanged(class UUIDataProvider* SourceProvider,FName SettingsName=NAME_None);
+     DECLARE_FUNCTION(execOnSettingProviderChanged)
+@@ -3180,6 +3193,8 @@ class UUIDataStore_OnlineStats : public UUIDataStore_Remote, public IUIListEleme
+ {
+ public:
+     //## BEGIN PROPS UIDataStore_OnlineStats
++    FPointer VfTable_IUIListElementProvider;
++    FPointer VfTable_IUIListElementCellProvider;
+     TArrayNoInit<class UClass*> StatsReadClasses;
+     FName StatsReadName;
+     struct FPlayerNickMetaData PlayerNickData;
+@@ -3190,7 +3205,7 @@ public:
+     BYTE CurrentReadType;
+     TScriptInterface<class IInterface> StatsInterface;
+     TScriptInterface<class IInterface> PlayerInterface;
+-    //## END PROPS UIDataStore_OnlineStats
++//## END PROPS UIDataStore_OnlineStats
+ 
+     void SortResultsByRank(class UOnlineStatsRead* StatsToSort);
+     DECLARE_FUNCTION(execSortResultsByRank)
+@@ -4219,9 +4234,10 @@ class UUIDynamicDataProvider : public UUIPropertyDataProvider, public IUIListEle
+ {
+ public:
+     //## BEGIN PROPS UIDynamicDataProvider
++    FPointer VfTable_IUIListElementCellProvider;
+     class UClass* DataClass;
+     class UObject* DataSource;
+-    //## END PROPS UIDynamicDataProvider
++//## END PROPS UIDynamicDataProvider
+ 
+     UBOOL BindProviderInstance(class UObject* DataSourceInstance);
+     UBOOL UnbindProviderInstance();
+@@ -4463,10 +4479,11 @@ class UUIResourceDataProvider : public UUIPropertyDataProvider, public IUIListEl
+ {
+ public:
+     //## BEGIN PROPS UIResourceDataProvider
++    FPointer VfTable_IUIListElementProvider;
++    FPointer VfTable_IUIListElementCellProvider;
+     BITFIELD bDataBindingPropertiesOnly:1;
+     BITFIELD bSkipDuringEnumeration:1;
+-    SCRIPT_ALIGN;
+-    //## END PROPS UIResourceDataProvider
++//## END PROPS UIResourceDataProvider
+ 
+     void eventInitializeProvider(UBOOL bIsEditor)
+     {
+@@ -4817,9 +4834,11 @@ class UUIResourceCombinationProvider : public UUIDataProvider, public IUIListEle
+ {
+ public:
+     //## BEGIN PROPS UIResourceCombinationProvider
++    FPointer VfTable_IUIListElementProvider;
++    FPointer VfTable_IUIListElementCellProvider;
+     class UUIResourceDataProvider* StaticDataProvider;
+     class UUIDataProvider_OnlineProfileSettings* ProfileProvider;
+-    //## END PROPS UIResourceCombinationProvider
++//## END PROPS UIResourceCombinationProvider
+ 
+     UBOOL eventGetCellFieldValue(FName FieldName,FName CellTag,INT ListIndex,struct FUIProviderFieldValue& out_FieldValue,INT ArrayIndex=-1)
+     {
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\EngineUserInterfaceClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\Engine\\Inc\\EngineUserInterfaceClasses.h"
+index 4df1ac7..72c8198 100644
+--- a/Development/Src/Engine/Inc/EngineUserInterfaceClasses.h
++++ b/Development/Src/Engine/Inc/EngineUserInterfaceClasses.h
+@@ -1348,14 +1348,15 @@ class UUIInteraction : public UInteraction, public FExec, public FGlobalDataStor
+ {
+ public:
+     //## BEGIN PROPS UIInteraction
++    FPointer VfTable_FExec;
++    FPointer VfTable_FGlobalDataStoreClientManager;
++    FPointer VfTable_FCallbackEventDevice;
+     class UUIManager* UIManager;
+     class UClass* UIManagerClass;
+     class UClass* SceneClientClass;
+     class UGameUISceneClient* SceneClient;
+     TArrayNoInit<FName> SupportedDoubleClickKeys;
+-private:
+     class UDataStoreClient* DataStoreManager;
+-public:
+     BITFIELD bProcessInput:1;
+     FLOAT UIJoystickDeadZone;
+     FLOAT UIAxisMultiplier;
+@@ -1367,7 +1368,7 @@ public:
+     TArrayNoInit<struct FUIAxisEmulationDefinition> ConfiguredAxisEmulationDefinitions;
+     TMap< FName,struct FUIAxisEmulationDefinition > AxisEmulationDefinitions;
+     struct FUIAxisEmulationData AxisInputEmulation[4];
+-    //## END PROPS UIInteraction
++//## END PROPS UIInteraction
+ 
+     DECLARE_FUNCTION(execGetPlayerCount)
+     {
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\GameFrameworkClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\GameFramework\\Inc\\GameFrameworkClasses.h"
+index 70b792e..c89475c 100644
+--- a/Development/Src/GameFramework/Inc/GameFrameworkClasses.h
++++ b/Development/Src/GameFramework/Inc/GameFrameworkClasses.h
+@@ -1000,6 +1000,7 @@ class AGameCrowdAgent : public ACrowdAgentBase, public IInterface_RVO
+ {
+ public:
+     //## BEGIN PROPS GameCrowdAgent
++    FPointer VfTable_IInterface_RVO;
+     class UGameCrowdGroup* MyGroup;
+     FVector PreferredVelocity;
+     FVector PendingVelocity;
+@@ -1028,7 +1029,6 @@ public:
+     BITFIELD bHasNotifiedSpawner:1;
+     BITFIELD bIsInSpawnPool:1;
+     BITFIELD bPaused:1;
+-    SCRIPT_ALIGN;
+     BYTE ConformType;
+     FLOAT ConformTraceDist;
+     INT ConformTraceInterval;
+@@ -1099,7 +1099,7 @@ public:
+     FLOAT InitialLastRenderTime;
+     FColor DebugAgentColor;
+     class AGameCrowdDestination* DebugSpawnDest;
+-    //## END PROPS GameCrowdAgent
++//## END PROPS GameCrowdAgent
+ 
+     virtual FVector GetCollisionExtent();
+     virtual UBOOL IsPanicked();
+@@ -1532,6 +1532,7 @@ class AGameCrowdDestination : public AGameCrowdInteractionPoint, public IEditorL
+ {
+ public:
+     //## BEGIN PROPS GameCrowdDestination
++    FPointer VfTable_IEditorLinkSelectionInterface;
+     BITFIELD bKillWhenReached:1;
+     BITFIELD bAllowAsPreviousDestination:1;
+     BITFIELD bAvoidWhenPanicked:1;
+@@ -1568,7 +1569,7 @@ public:
+     FLOAT Priority;
+     FLOAT LastSpawnTime;
+     class AGameCrowdPopulationManager* MyPopMgr;
+-    //## END PROPS GameCrowdDestination
++//## END PROPS GameCrowdDestination
+ 
+     virtual UBOOL ReachedByAgent(class AGameCrowdAgent* Agent,FVector TestPosition,UBOOL bTestExactly);
+     DECLARE_FUNCTION(execReachedByAgent)
+@@ -1787,6 +1788,7 @@ class AGameCrowdPopulationManager : public ACrowdPopulationManagerBase, public I
+ {
+ public:
+     //## BEGIN PROPS GameCrowdPopulationManager
++    FPointer VfTable_IInterface_NavigationHandle;
+     struct FCrowdSpawnInfoItem CloudSpawnInfo;
+     TArrayNoInit<struct FCrowdSpawnInfoItem> ScriptedSpawnInfo;
+     class AGameCrowdInfoVolume* ActiveCrowdInfoVolume;
+@@ -1801,8 +1803,7 @@ public:
+     FLOAT LastPlayerInfoUpdateTime;
+     BITFIELD bDebugSpawns:1;
+     BITFIELD bPauseCrowd:1;
+-    SCRIPT_ALIGN;
+-    //## END PROPS GameCrowdPopulationManager
++//## END PROPS GameCrowdPopulationManager
+ 
+     virtual void UpdateAllSpawners(FLOAT DeltaTime);
+     virtual UBOOL GetPlayerInfo();
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\GearGameAIClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\GearGame\\Inc\\GearGameAIClasses.h"
+index 7367c52..2973535 100644
+--- a/Development/Src/GearGame/Inc/GearGameAIClasses.h
++++ b/Development/Src/GearGame/Inc/GearGameAIClasses.h
+@@ -221,14 +221,14 @@ class UAIAvoidanceCylinderComponent : public UCylinderComponent, public IInterfa
+ {
+ public:
+     //## BEGIN PROPS AIAvoidanceCylinderComponent
++    FPointer VfTable_IInterface_NavMeshPathObstacle;
++    FPointer VfTable_IInterface_NavMeshPathObject;
+     FVector LastReLinkLocation;
+     FLOAT UpdateThreshold;
+     BITFIELD bEnabled:1;
+     BITFIELD bDontLinkToMesh:1;
+-    SCRIPT_ALIGN;
+     BYTE TeamThatShouldFleeMe;
+-    SCRIPT_ALIGN;
+-    //## END PROPS AIAvoidanceCylinderComponent
++//## END PROPS AIAvoidanceCylinderComponent
+ 
+     virtual void ReLinkToMesh(UBOOL bForce);
+     virtual UBOOL ShouldAIAvoidMe(class AGearAI* AskingAI);
+@@ -409,12 +409,13 @@ class AAIAvoidanceCylinder : public AActor, public IAIObjectAvoidanceInterface
+ {
+ public:
+     //## BEGIN PROPS AIAvoidanceCylinder
++    FPointer VfTable_IAIObjectAvoidanceInterface;
+     BITFIELD bEnabled:1;
+     BITFIELD bShouldEvade:1;
+     class UAIAvoidanceCylinderComponent* AvoidanceComp;
+     BYTE TeamThatShouldFleeMe;
+     FName OwnerName;
+-    //## END PROPS AIAvoidanceCylinder
++//## END PROPS AIAvoidanceCylinder
+ 
+     virtual void ForceReTouch();
+     DECLARE_FUNCTION(execForceReTouch)
+@@ -457,9 +458,9 @@ class AAIAvoidanceCylinder_MomCorpser : public ANavMeshObstacle, public IInterfa
+ {
+ public:
+     //## BEGIN PROPS AIAvoidanceCylinder_MomCorpser
++    FPointer VfTable_IInterface_NavMeshPathObject;
+     BITFIELD bNavMeshRegistered:1;
+-    SCRIPT_ALIGN;
+-    //## END PROPS AIAvoidanceCylinder_MomCorpser
++//## END PROPS AIAvoidanceCylinder_MomCorpser
+ 
+     virtual void RegisterObstacle();
+     virtual void UnRegisterObstacle();
+@@ -682,6 +683,7 @@ class AGameplayRouteNode : public APathNode, public IEditorLinkSelectionInterfac
+ {
+ public:
+     //## BEGIN PROPS GameplayRouteNode
++    FPointer VfTable_IEditorLinkSelectionInterface;
+     BITFIELD bAssignCombatZones:1;
+     BITFIELD bAssignResictedCoverLinks:1;
+     BITFIELD bOverrideFudgeFactorAtThisNode:1;
+@@ -691,7 +693,7 @@ public:
+     TArrayNoInit<struct FActorReference> RestrictToCoverLinks;
+     FLOAT OverrideFudgeFactor;
+     FLOAT OverrideRouteIndexOffset;
+-    //## END PROPS GameplayRouteNode
++//## END PROPS GameplayRouteNode
+ 
+     DECLARE_CLASS(AGameplayRouteNode,APathNode,0,GearGame)
+     virtual UObject* GetUObjectInterfaceEditorLinkSelectionInterface(){return this;}
+@@ -3739,8 +3741,9 @@ class APawnBlockingVolume : public ADynamicBlockingVolume, public IInterface_Nav
+ {
+ public:
+     //## BEGIN PROPS PawnBlockingVolume
++    FPointer VfTable_IInterface_NavMeshPathObject;
+     TArrayNoInit<class UClass*> AllowedClasses;
+-    //## END PROPS PawnBlockingVolume
++//## END PROPS PawnBlockingVolume
+ 
+     DECLARE_CLASS(APawnBlockingVolume,ADynamicBlockingVolume,0,GearGame)
+     virtual UObject* GetUObjectInterfaceInterface_NavMeshPathObject(){return this;}
+@@ -3823,8 +3826,10 @@ class ATrigger_ButtonInteraction : public ATrigger, public IInterface_NavMeshPat
+ {
+ public:
+     //## BEGIN PROPS Trigger_ButtonInteraction
++    FPointer VfTable_IInterface_NavMeshPathSwitch;
++    FPointer VfTable_IEditorLinkSelectionInterface;
+     TArrayNoInit<class AAISwitchablePylon*> LinkedPylons;
+-    //## END PROPS Trigger_ButtonInteraction
++//## END PROPS Trigger_ButtonInteraction
+ 
+     UBOOL eventAIActivateSwitch(class AAIController* InAI)
+     {
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\GearGameClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\GearGame\\Inc\\GearGameClasses.h"
+index f2472fe..93b08c1 100644
+--- a/Development/Src/GearGame/Inc/GearGameClasses.h
++++ b/Development/Src/GearGame/Inc/GearGameClasses.h
+@@ -5679,6 +5679,7 @@ class AGearDestructibleObject : public AActor, public IInterface_NavMeshPathObje
+ {
+ public:
+     //## BEGIN PROPS GearDestructibleObject
++    FPointer VfTable_IInterface_NavMeshPathObject;
+     BITFIELD bCanSpecialMeleeAttacked:1;
+     BITFIELD bAllowBumpDamageFromAI:1;
+     BITFIELD bComponentsSetUp:1;
+@@ -5709,11 +5710,10 @@ public:
+     TArrayNoInit<class ACoverLink*> AttachedCover;
+     BYTE ResetCount;
+     BYTE ProcessedMods[32];
+-    SCRIPT_ALIGN;
+     struct FReplicatedDamageModInfo ReplicatedDamageMods[32];
+     TArrayNoInit<class AGearProj_Grenade*> AttachedGrenades;
+     FLOAT ClosestLocalPlayerSqDist;
+-    //## END PROPS GearDestructibleObject
++//## END PROPS GearDestructibleObject
+ 
+     virtual UBOOL IsAlive();
+     virtual void UnDestroy();
+@@ -11091,6 +11091,7 @@ class AInterpActor_MovableCover : public AInterpActor, public IInterface_NavMesh
+ {
+ public:
+     //## BEGIN PROPS InterpActor_MovableCover
++    FPointer VfTable_IInterface_NavMeshPathObstacle;
+     TArrayNoInit<class ACoverLink_Movable*> CoverLinks;
+     FLOAT LastMoveTime;
+     TArrayNoInit<class AGearPawn*> PushingPawns;
+@@ -11100,9 +11101,8 @@ public:
+     BITFIELD bIsMovable:1;
+     BITFIELD bHidePushableIcon:1;
+     BITFIELD bObstacleRegistered:1;
+-    SCRIPT_ALIGN;
+     FVector LastObstacleCheckLoc;
+-    //## END PROPS InterpActor_MovableCover
++//## END PROPS InterpActor_MovableCover
+ 
+     virtual void RegisterObstacle();
+     virtual void UnRegisterObstacle();
+@@ -11216,6 +11216,7 @@ class AJumpLink : public APathNode, public IInterface_NavMeshPathObject
+ {
+ public:
+     //## BEGIN PROPS JumpLink
++    FPointer VfTable_IInterface_NavMeshPathObject;
+     TArrayNoInit<struct FJumpLinkEdgeData> EdgeData;
+     BITFIELD bAllowLocustDrone:1;
+     BITFIELD bAllowBloodmount:1;
+@@ -11238,7 +11239,7 @@ public:
+     class UJumpLinkRenderingComponent* DebugRenderComp;
+     FLOAT JumpTime;
+     FLOAT GravityOfLastSim;
+-    //## END PROPS JumpLink
++//## END PROPS JumpLink
+ 
+     virtual UBOOL GetJumpVelocity(class APawn* PawnJumping,FVector Dest,FVector& JumpVelocity);
+     DECLARE_FUNCTION(execGetJumpVelocity)
+@@ -11340,8 +11341,10 @@ class AJumpPoint : public APathNode, public IInterface_NavMeshPathObject, public
+ {
+ public:
+     //## BEGIN PROPS JumpPoint
++    FPointer VfTable_IInterface_NavMeshPathObject;
++    FPointer VfTable_IEditorLinkSelectionInterface;
+     TArrayNoInit<struct FJumpInfo> JumpDests;
+-    //## END PROPS JumpPoint
++//## END PROPS JumpPoint
+ 
+     DECLARE_CLASS(AJumpPoint,APathNode,0,GearGame)
+     virtual UObject* GetUObjectInterfaceInterface_NavMeshPathObject(){return this;}
+@@ -11395,7 +11398,8 @@ class AKryllVolumeBase : public AVolume, public IInterface_NavMeshPathObstacle
+ {
+ public:
+     //## BEGIN PROPS KryllVolumeBase
+-    //## END PROPS KryllVolumeBase
++    FPointer VfTable_IInterface_NavMeshPathObstacle;
++//## END PROPS KryllVolumeBase
+ 
+     virtual void RegisterObstacle();
+     virtual void UnRegisterObstacle();
+@@ -11853,11 +11857,11 @@ class ATrigger_DoorInteraction : public ATrigger, public IEditorLinkSelectionInt
+ {
+ public:
+     //## BEGIN PROPS Trigger_DoorInteraction
++    FPointer VfTable_IEditorLinkSelectionInterface;
+     class AActor* AlignToObj;
+     class UAnimSet* AnimSet_Base;
+     FName AnimName;
+     BYTE RootBoneMotion;
+-    SCRIPT_ALIGN;
+     BITFIELD bShouldHolsterWeaponFirst:1;
+     BITFIELD bPlayAnimationForHeavyWeapons:1;
+     BITFIELD bShouldAutoDropHeavyWeapon:1;
+@@ -11868,7 +11872,7 @@ public:
+     BITFIELD bAutoTriggerAI:1;
+     FLOAT TimeForDoorOpen;
+     FLOAT TurnTowardSpeed;
+-    //## END PROPS Trigger_DoorInteraction
++//## END PROPS Trigger_DoorInteraction
+ 
+     DECLARE_CLASS(ATrigger_DoorInteraction,ATrigger,0,GearGame)
+     virtual UObject* GetUObjectInterfaceEditorLinkSelectionInterface(){return this;}
+@@ -11885,6 +11889,7 @@ class ATrigger_Engage : public ATrigger, public IEditorLinkSelectionInterface
+ {
+ public:
+     //## BEGIN PROPS Trigger_Engage
++    FPointer VfTable_IEditorLinkSelectionInterface;
+     class AActor* ENGAGE_Actor;
+     BYTE ENGAGE_StartSpecialMove;
+     BYTE ENGAGE_EndSpecialMove;
+@@ -11914,7 +11919,6 @@ public:
+     BITFIELD ENGAGE_bRequireButtonHold:1;
+     BITFIELD bEngageEnabled:1;
+     BITFIELD bIsEngagable:1;
+-    SCRIPT_ALIGN;
+     struct FActionInfo ENGAGE_ActionInfo;
+     TArrayNoInit<struct FActionInfo> ENGAGE_ActionInfoList;
+     INT LoopCounter;
+@@ -11927,7 +11931,7 @@ public:
+     class ASkeletalMeshActor* Bystander1Mesh;
+     class ASkeletalMeshActor* Bystander2Mesh;
+     class USeqAct_CoopEngage* CoopEngageAction;
+-    //## END PROPS Trigger_Engage
++//## END PROPS Trigger_Engage
+ 
+     void eventBootEngagedPlayers()
+     {
+@@ -11950,6 +11954,8 @@ class ATrigger_LadderInteraction : public ATrigger, public IInterface_NavMeshPat
+ {
+ public:
+     //## BEGIN PROPS Trigger_LadderInteraction
++    FPointer VfTable_IInterface_NavMeshPathObject;
++    FPointer VfTable_IEditorLinkSelectionInterface;
+     class AStaticMeshActor* LadderSMActor;
+     class ATrigger_LadderInteraction* OtherEndOfLadder;
+     FVector BottomLocOffset;
+@@ -11965,7 +11971,7 @@ public:
+     class AGearPawn* LadderUser;
+     FLOAT LastTimeUserGotOff;
+     FLOAT DelayBeforeReuseTime;
+-    //## END PROPS Trigger_LadderInteraction
++//## END PROPS Trigger_LadderInteraction
+ 
+     virtual UBOOL IsTopOfLadder();
+     virtual void GetTopEntryPoint(FVector& out_Loc,FRotator& out_Rot);
+@@ -12069,6 +12075,7 @@ class ATrigger_ScriptedMove : public ATrigger, public IEditorLinkSelectionInterf
+ {
+ public:
+     //## BEGIN PROPS Trigger_ScriptedMove
++    FPointer VfTable_IEditorLinkSelectionInterface;
+     class AActor* ScriptedActor;
+     INT TotalTriggerCount;
+     INT TriggerCounter;
+@@ -12082,7 +12089,6 @@ public:
+     BYTE RootBoneMotion_Start;
+     BYTE RootBoneMotion_End;
+     BYTE RootBoneMotion_Loop;
+-    SCRIPT_ALIGN;
+     BITFIELD bShouldHolsterWeaponFirst:1;
+     BITFIELD bPlayAnimationForHeavyWeapons:1;
+     BITFIELD bShouldAutoDropHeavyWeapon:1;
+@@ -12093,7 +12099,7 @@ public:
+     INT LoopCounter;
+     TArrayNoInit<class ATrigger_ScriptedMove*> LinkedTriggers;
+     class ATriggerVolume* SingleUserVolume;
+-    //## END PROPS Trigger_ScriptedMove
++//## END PROPS Trigger_ScriptedMove
+ 
+     DECLARE_CLASS(ATrigger_ScriptedMove,ATrigger,0,GearGame)
+     virtual UObject* GetUObjectInterfaceEditorLinkSelectionInterface(){return this;}
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\GearGameOnlineClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\GearGame\\Inc\\GearGameOnlineClasses.h"
+index 4414065..e2403a1 100644
+--- a/Development/Src/GearGame/Inc/GearGameOnlineClasses.h
++++ b/Development/Src/GearGame/Inc/GearGameOnlineClasses.h
+@@ -224,13 +224,14 @@ class UGearDedicatedServerInterface : public UObject, public FTickableObject
+ {
+ public:
+     //## BEGIN PROPS GearDedicatedServerInterface
++    FPointer VfTable_FTickableObject;
+     TArray<struct FDBCommandWorker*> DBCommands;
+     BITFIELD bUseDedicatedServerInterface:1;
+     BITFIELD bShouldShutdown:1;
+     TArrayNoInit<struct FKeyValuePair> CurrentServerSettings;
+     INT bTestingDedicated;
+     FScriptDelegate __OnDBServerConfigurationRequestComplete__Delegate;
+-    //## END PROPS GearDedicatedServerInterface
++//## END PROPS GearDedicatedServerInterface
+ 
+     virtual UBOOL Initialize();
+     virtual void ShutDown();
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\GearGamePawnClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\GearGame\\Inc\\GearGamePawnClasses.h"
+index 38ef488..73260e4 100644
+--- a/Development/Src/GearGame/Inc/GearGamePawnClasses.h
++++ b/Development/Src/GearGame/Inc/GearGamePawnClasses.h
+@@ -3926,7 +3926,8 @@ class AGearPawn_LocustBase : public AGearPawn_Infantry, public IAIObjectAvoidanc
+ {
+ public:
+     //## BEGIN PROPS GearPawn_LocustBase
+-    //## END PROPS GearPawn_LocustBase
++    FPointer VfTable_IAIObjectAvoidanceInterface;
++//## END PROPS GearPawn_LocustBase
+ 
+     class UAIAvoidanceCylinderComponent* eventGetAIAvoidanceCylinderComponent()
+     {
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\GearGameSequenceClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\GearGame\\Inc\\GearGameSequenceClasses.h"
+index eed7e55..c222973 100644
+--- a/Development/Src/GearGame/Inc/GearGameSequenceClasses.h
++++ b/Development/Src/GearGame/Inc/GearGameSequenceClasses.h
+@@ -2180,9 +2180,9 @@ class USeqAct_GearUnlockableUnlock : public USequenceAction
+ {
+ public:
+     //## BEGIN PROPS SeqAct_GearUnlockableUnlock
+-    BYTE Unlockable_DEPRECATED;
++    BYTE Unlockable;
+     INT UnlockableNum;
+-    //## END PROPS SeqAct_GearUnlockableUnlock
++//## END PROPS SeqAct_GearUnlockableUnlock
+ 
+     DECLARE_CLASS(USeqAct_GearUnlockableUnlock,USequenceAction,0,GearGame)
+ 	virtual void Activated();
+@@ -2253,13 +2253,13 @@ class USeqAct_KillPlayers : public USequenceAction
+ public:
+     //## BEGIN PROPS SeqAct_KillPlayers
+     BITFIELD bShouldGib:1;
+-    BITFIELD bKillPlayers_DEPRECATED:1;
++    BITFIELD bKillPlayers:1;
+     BITFIELD bKillPlayersNew:1;
+-    BITFIELD bKillEnemies_DEPRECATED:1;
++    BITFIELD bKillEnemies:1;
+     BITFIELD bKillEnemiesNew:1;
+     BITFIELD bKillFriends:1;
+     TArrayNoInit<class UObject*> Exceptions;
+-    //## END PROPS SeqAct_KillPlayers
++//## END PROPS SeqAct_KillPlayers
+ 
+     DECLARE_CLASS(USeqAct_KillPlayers,USequenceAction,0,GearGame)
+ 	void Activated();
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\GearGameSoundClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\GearGame\\Inc\\GearGameSoundClasses.h"
+index 00f5fde..464e105 100644
+--- a/Development/Src/GearGame/Inc/GearGameSoundClasses.h
++++ b/Development/Src/GearGame/Inc/GearGameSoundClasses.h
+@@ -1160,16 +1160,16 @@ class AGearRemoteSpeaker : public AReplicationInfo, public IInterface_Speaker
+ {
+ public:
+     //## BEGIN PROPS GearRemoteSpeaker
++    FPointer VfTable_IInterface_Speaker;
+     TArrayNoInit<FString> MasterGUDBankClassNames;
+     INT LoadedGUDBank;
+     BITFIELD bSpeaking:1;
+     BITFIELD bEnabled:1;
+     BITFIELD bMuteGUDS:1;
+-    SCRIPT_ALIGN;
+     struct FRemoteSpeakerDelayedLine DelayedLineParams;
+     class UAudioComponent* CurrentlySpeakingLine;
+     INT TeamIndex;
+-    //## END PROPS GearRemoteSpeaker
++//## END PROPS GearRemoteSpeaker
+ 
+     UBOOL eventIsSameTeam(class APawn* P)
+     {
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\GearGameSpawnerClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\GearGame\\Inc\\GearGameSpawnerClasses.h"
+index 70d7e6f..1ae74e8 100644
+--- a/Development/Src/GearGame/Inc/GearGameSpawnerClasses.h
++++ b/Development/Src/GearGame/Inc/GearGameSpawnerClasses.h
+@@ -170,6 +170,7 @@ class AGearLambentStalkBase : public AActor, public IEditorLinkSelectionInterfac
+ {
+ public:
+     //## BEGIN PROPS GearLambentStalkBase
++    FPointer VfTable_IEditorLinkSelectionInterface;
+     FStringNoInit FriendlyName;
+     FLOAT WarningTime;
+     class UCameraShake* WarningCameraShake;
+@@ -237,7 +238,7 @@ public:
+     TArrayNoInit<class AGearSpawner_LambentPodBase*> ActivePods;
+     class AGearPointOfInterest_Stalk* POI;
+     class UDynamicLightEnvironmentComponent* LightEnvironment;
+-    //## END PROPS GearLambentStalkBase
++//## END PROPS GearLambentStalkBase
+ 
+     virtual class UMaterialInstanceConstant* ConstructRubbleDecalMaterialInstance(class UMaterialInterface* MatInt,FLOAT FadeValue);
+     virtual void ConstructStalkMaterialInstances();
+@@ -406,6 +407,8 @@ class AGearSpawner_CorpserEggBase : public AGearSpawner, public IEditorLinkSelec
+ {
+ public:
+     //## BEGIN PROPS GearSpawner_CorpserEggBase
++    FPointer VfTable_IEditorLinkSelectionInterface;
++    FPointer VfTable_IInterface_NavMeshPathObstacle;
+     class USkeletalMeshComponent* Mesh;
+     class UGearAnim_Slot* FullBodySlot;
+     FLOAT EggHealth;
+@@ -426,7 +429,7 @@ public:
+     class UMaterialInstanceConstant* MembraneMaterial;
+     FLOAT TimeOfEmerge;
+     class UCylinderComponent* CollisionCylinderComponent;
+-    //## END PROPS GearSpawner_CorpserEggBase
++//## END PROPS GearSpawner_CorpserEggBase
+ 
+     virtual void RegisterObstacle();
+     virtual void UnRegisterObstacle();
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\GearGameVehicleClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\GearGame\\Inc\\GearGameVehicleClasses.h"
+index ae6dd37..ce2bcee 100644
+--- a/Development/Src/GearGame/Inc/GearGameVehicleClasses.h
++++ b/Development/Src/GearGame/Inc/GearGameVehicleClasses.h
+@@ -1897,6 +1897,7 @@ class AVehicle_Siegebeast_Base : public AGearVehicle, public IInterface_NavMeshP
+ {
+ public:
+     //## BEGIN PROPS Vehicle_Siegebeast_Base
++    FPointer VfTable_IInterface_NavMeshPathObstacle;
+     class UGearAnim_Slot* CustomAnimNode;
+     BITFIELD bReadyToFire:1;
+     BITFIELD bIsCranking:1;
+@@ -1988,7 +1989,7 @@ public:
+     TArrayNoInit<class AGearPawn*> PawnsBeingUsedBy;
+     FLOAT ViewPitchMinReplicated;
+     FLOAT ViewPitchMaxReplicated;
+-    //## END PROPS Vehicle_Siegebeast_Base
++//## END PROPS Vehicle_Siegebeast_Base
+ 
+     virtual void RegisterObstacle();
+     virtual void UnRegisterObstacle();
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\GearGameWeaponClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\GearGame\\Inc\\GearGameWeaponClasses.h"
+index c9e5717..0c54090 100644
+--- a/Development/Src/GearGame/Inc/GearGameWeaponClasses.h
++++ b/Development/Src/GearGame/Inc/GearGameWeaponClasses.h
+@@ -715,8 +715,8 @@ public:
+     class USoundCue* ExplosionSoundHurtSomeone;
+     TArrayNoInit<struct FExplosionCameraData> CameraShakes;
+     TArrayNoInit<struct FExplosionCameraData> FriendlyFireCameraShakes;
+-    class UClass* CameraLensEffect_DEPRECATED;
+-    FLOAT CameraLensEffectRadius_DEPRECATED;
++    class UClass* CameraLensEffect;
++    FLOAT CameraLensEffectRadius;
+     TArrayNoInit<struct FGearCameraLensEffect> CameraLensEffects;
+     class UForceFeedbackWaveform* RumbleData;
+     FLOAT MaxRumbleRange;
+@@ -732,7 +732,7 @@ public:
+     class ULensFlare* LensFlareTemplate;
+     FLOAT LensFlareStartTime;
+     FLOAT LensFlareEndTime;
+-    //## END PROPS GearExplosionContent
++//## END PROPS GearExplosionContent
+ 
+     DECLARE_CLASS(UGearExplosionContent,UObject,0,GearGame)
+ 	/**
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\IpDrvClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\IpDrv\\Inc\\IpDrvClasses.h"
+index faa5560..03abc57 100644
+--- a/Development/Src/IpDrv/Inc/IpDrvClasses.h
++++ b/Development/Src/IpDrv/Inc/IpDrvClasses.h
+@@ -613,7 +613,8 @@ class UMCPBase : public UObject, public FTickableObject
+ {
+ public:
+     //## BEGIN PROPS MCPBase
+-    //## END PROPS MCPBase
++    FPointer VfTable_FTickableObject;
++//## END PROPS MCPBase
+ 
+     DECLARE_ABSTRACT_CLASS(UMCPBase,UObject,0,IpDrv)
+     static const TCHAR* StaticConfigName() {return TEXT("Engine");}
+@@ -1126,6 +1127,7 @@ class UMeshBeacon : public UObject, public FTickableObject
+ {
+ public:
+     //## BEGIN PROPS MeshBeacon
++    FPointer VfTable_FTickableObject;
+     INT MeshBeaconPort;
+     FSocket* Socket;
+     BITFIELD bIsInTick:1;
+@@ -1141,7 +1143,7 @@ public:
+     FLOAT MaxBandwidthTestSendTime;
+     FLOAT MaxBandwidthTestReceiveTime;
+     INT MaxBandwidthHistoryEntries;
+-    //## END PROPS MeshBeacon
++//## END PROPS MeshBeacon
+ 
+     virtual void DestroyBeacon();
+     DECLARE_FUNCTION(execDestroyBeacon)
+@@ -2299,6 +2301,7 @@ class UOnlinePlaylistManager : public UObject, public FTickableObject
+ {
+ public:
+     //## BEGIN PROPS OnlinePlaylistManager
++    FPointer VfTable_FTickableObject;
+     TArrayNoInit<struct FContentOfferId> ContentOfferIds;
+     TArrayNoInit<struct FPlaylist> Playlists;
+     TArrayNoInit<FString> PlaylistFileNames;
+@@ -2317,14 +2320,13 @@ public:
+     INT CurrentPlaylistId;
+     FName EventsInterfaceName;
+     INT DataCenterId;
+-    // Judgment v845: second data-center slot appended by the 845 cooker.
+     INT DataCenterIdOverride;
+     FStringNoInit DataCenterFileName;
+     FLOAT LastPlaylistDownloadTime;
+     FLOAT PlaylistRefreshInterval;
+     FScriptDelegate __OnReadPlaylistComplete__Delegate;
+     FScriptDelegate __OnPlaylistPopulationDataUpdated__Delegate;
+-    //## END PROPS OnlinePlaylistManager
++//## END PROPS OnlinePlaylistManager
+ 
+     virtual void DetermineFilesToDownload();
+     virtual UBOOL ShouldRefreshPlaylists();
+@@ -2519,6 +2521,7 @@ class UPartyBeacon : public UObject, public FTickableObject
+ {
+ public:
+     //## BEGIN PROPS PartyBeacon
++    FPointer VfTable_FTickableObject;
+     INT PartyBeaconPort;
+     FSocket* Socket;
+     BITFIELD bIsInTick:1;
+@@ -2528,7 +2531,7 @@ public:
+     FLOAT ElapsedHeartbeatTime;
+     FName BeaconName;
+     FScriptDelegate __OnDestroyComplete__Delegate;
+-    //## END PROPS PartyBeacon
++//## END PROPS PartyBeacon
+ 
+     virtual void DestroyBeacon();
+     DECLARE_FUNCTION(execDestroyBeacon)
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\IpDrvUIPrivateClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\IpDrv\\Inc\\IpDrvUIPrivateClasses.h"
+index 3d46620..f105c04 100644
+--- a/Development/Src/IpDrv/Inc/IpDrvUIPrivateClasses.h
++++ b/Development/Src/IpDrv/Inc/IpDrvUIPrivateClasses.h
+@@ -76,6 +76,7 @@ class UUIDataStore_OnlinePlaylists : public UUIDataStore, public IUIListElementP
+ {
+ public:
+     //## BEGIN PROPS UIDataStore_OnlinePlaylists
++    FPointer VfTable_IUIListElementProvider;
+     FStringNoInit ProviderClassName;
+     class UClass* ProviderClass;
+     TArrayNoInit<class UUIResourceDataProvider*> RankedDataProviders;
+@@ -83,7 +84,7 @@ public:
+     TArrayNoInit<class UUIResourceDataProvider*> RecModeDataProviders;
+     TArrayNoInit<class UUIResourceDataProvider*> PrivateDataProviders;
+     class UOnlinePlaylistManager* PlaylistMan;
+-    //## END PROPS UIDataStore_OnlinePlaylists
++//## END PROPS UIDataStore_OnlinePlaylists
+ 
+     virtual INT GetProviderCount(FName ProviderTag) const;
+     UBOOL GetResourceProviders(FName ProviderTag,TArray<class UUIResourceDataProvider*>& out_Providers) const;
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\UnrealEdClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\UnrealEd\\Inc\\UnrealEdClasses.h"
+index c62fed0..07a11b3 100644
+--- a/Development/Src/UnrealEd/Inc/UnrealEdClasses.h
++++ b/Development/Src/UnrealEd/Inc/UnrealEdClasses.h
+@@ -227,11 +227,10 @@ public:
+     FStringNoInit ToolTip;
+     TArrayNoInit<FVector> Vertices;
+     TArrayNoInit<FBuilderPoly> Polys;
+-    FName Group_DEPRECATED;
++    FName Group;
+     FName Layer;
+     BITFIELD MergeCoplanars:1;
+-    SCRIPT_ALIGN;
+-    //## END PROPS BrushBuilder
++//## END PROPS BrushBuilder
+ 
+     virtual void BeginBrush(UBOOL InMergeCoplanars,FName InLayer);
+     virtual UBOOL EndBrush();
+@@ -409,7 +408,6 @@ public:
+     BITFIELD bShowFloor:1;
+     BITFIELD bUseSlimCascadeDraw:1;
+     BITFIELD bCenterCascadeModuleText:1;
+-    SCRIPT_ALIGN;
+     FColor BackgroundColor;
+     FColor Empty_Background;
+     FColor Emitter_Background;
+@@ -442,11 +440,11 @@ public:
+     INT ShowPPFlags;
+     INT SlimCascadeDrawHeight;
+     INT Cascade_MouseMoveThreshold;
+-    TArrayNoInit<struct FModuleMenuMapper> ModuleMenu_TypeDataToBaseModuleRejections_DEPRECATED;
+-    TArrayNoInit<struct FModuleMenuMapper> ModuleMenu_TypeDataToSpecificModuleRejections_DEPRECATED;
+-    TArrayNoInit<FString> ModuleMenu_ModuleRejections_DEPRECATED;
++    TArrayNoInit<struct FModuleMenuMapper> ModuleMenu_TypeDataToBaseModuleRejections;
++    TArrayNoInit<struct FModuleMenuMapper> ModuleMenu_TypeDataToSpecificModuleRejections;
++    TArrayNoInit<FString> ModuleMenu_ModuleRejections;
+     FLOAT MotionModeRadius;
+-    //## END PROPS CascadeOptions
++//## END PROPS CascadeOptions
+ 
+     DECLARE_CLASS(UCascadeOptions,UObject,0|CLASS_Config,UnrealEd)
+     static const TCHAR* StaticConfigName() {return TEXT("EditorUserSettings");}
+@@ -3539,14 +3537,14 @@ public:
+     BITFIELD bShowGrid:1;
+     BITFIELD bShowBackground:1;
+     BITFIELD bHideUnusedConnectors:1;
+-    BITFIELD bDrawCurves_DEPRECATED:1;
++    BITFIELD bDrawCurves:1;
+     BITFIELD bRealtimeMaterialViewport:1;
+     BITFIELD bRealtimeExpressionViewport:1;
+     BITFIELD bAlwaysRefreshAllPreviews:1;
+-    BITFIELD bUseSortedMenus_DEPRECATED:1;
++    BITFIELD bUseSortedMenus:1;
+     BITFIELD bUseUnsortedMenus:1;
+     TArrayNoInit<FString> FavoriteExpressions;
+-    //## END PROPS MaterialEditorOptions
++//## END PROPS MaterialEditorOptions
+ 
+     DECLARE_CLASS(UMaterialEditorOptions,UObject,0|CLASS_Config,UnrealEd)
+     static const TCHAR* StaticConfigName() {return TEXT("EditorUserSettings");}
+
+diff --git "a/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\delta-v52\\UnrealEdGameStatsClasses.h" "b/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\UnrealEd\\Inc\\UnrealEdGameStatsClasses.h"
+index cafff64..f02f283 100644
+--- a/Development/Src/UnrealEd/Inc/UnrealEdGameStatsClasses.h
++++ b/Development/Src/UnrealEd/Inc/UnrealEdGameStatsClasses.h
+@@ -713,7 +713,8 @@ class UGameStatsVisitorImpl : public UObject, public IGameStatsDatabaseVisitor
+ {
+ public:
+     //## BEGIN PROPS GameStatsVisitorImpl
+-    //## END PROPS GameStatsVisitorImpl
++    FPointer VfTable_IGameStatsDatabaseVisitor;
++//## END PROPS GameStatsVisitorImpl
+ 
+     DECLARE_ABSTRACT_CLASS(UGameStatsVisitorImpl,UObject,0,UnrealEd)
+     static const TCHAR* StaticConfigName() {return TEXT("Editor");}
