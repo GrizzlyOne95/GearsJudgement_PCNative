@@ -1,0 +1,10 @@
+# Deny everything by default - the tree contains Epic-licensed engine source,
+# game packages (.upk/.u), and compiled binaries. Only author-owned material
+# below is version-controlled. Do NOT loosen without checking copyright.
+/*
+!/.gitignore
+!/README.md
+!/JUDGMENT-PORT-STATUS.md
+!/_Build
+/_Build/*
+!/_Build/*.response
