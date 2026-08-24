@@ -1,0 +1,20 @@
+diff --git "a/GameFrameworkClasses.h.pre-csm/C:\\Users\\iestu\\AppData\\Local\\Temp\\opencode\\hdr-backup\\GameFrameworkClasses.h.pre-csm.bak" "b/{label_b}/C:\\Games\\Gears 3 Files\\gears_of_war_3_2011-09-14\\Development\\Src\\GameFramework\\Inc\\GameFrameworkClasses.h"
+index 0b8b7d4..70b792e 100644
+--- a/Development/Src/GameFramework/Inc/GameFrameworkClasses.h
++++ b/Development/Src/GameFramework/Inc/GameFrameworkClasses.h
+@@ -2143,7 +2143,6 @@ public:
+     BITFIELD bDebugCrowdAwareness:1;
+     BITFIELD bIsWarmupPaused:1;
+     FLOAT AgentAwareRadius;
+-    FName CurrentSoundMode;
+     //## END PROPS GamePlayerController
+ 
+     virtual INT GetUIPlayerIndex();
+@@ -3892,7 +3891,6 @@ VERIFY_CLASS_OFFSET_NODIE(AGameExplosionActor,GameExplosionActor,ExplosionDirect
+ VERIFY_CLASS_SIZE_NODIE(AGameExplosionActor)
+ VERIFY_CLASS_SIZE_NODIE(AGamePawn)
+ VERIFY_CLASS_OFFSET_NODIE(AGamePlayerController,GamePlayerController,AgentAwareRadius)
+-VERIFY_CLASS_OFFSET_NODIE(AGamePlayerController,GamePlayerController,CurrentSoundMode)
+ VERIFY_CLASS_SIZE_NODIE(AGamePlayerController)
+ VERIFY_CLASS_SIZE_NODIE(UGameTypes)
+ VERIFY_CLASS_OFFSET_NODIE(AMobileHUD,MobileHUD,JoystickBackground)
