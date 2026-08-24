@@ -584,3 +584,36 @@ as well. A living short-form status document now exists in the build tree at
 `C:\Games\Gears 3 Files\gears_of_war_3_2011-09-14\JUDGMENT-PORT-STATUS.md`, containing
 the milestone summary, the full exonerated-mechanisms table, confirmed layout facts,
 live hypotheses, and the exact build/run recipe for the diagnostic loaders.
+
+
+### 2026-08-24 session II: layout sweep industrialized; exit purge completes (exit code 0)
+
+Built on the session-I milestone (full script load). The remaining blocker was
+exit-time purge faulting on classes whose v845 layout was REORDERED relative to
+the alpha headers.
+
+- Generalized the ExitProperties layout dumper: `-JUDGMENTLAYOUTALL` /
+  `-JUDGMENTLAYOUTCLASSES=` now emit a `[JUDGLAYOUT][CLS:<name>]` property-chain
+  table for every destroyed class. A single instrumented run yields the full
+  4,778-class relinked-layout database used for offline sweeping
+  (`JudgmentLoader-v49-layoutall.log`).
+- Wrote a hierarchy-aware verifier (staged at `Temp\opencode\sweep_v3.py`):
+  parent graph from header declarations, child base anchored at the PARENT'S
+  logged v845 PropertiesSize, x86 packing simulation (align<=4 + bitfield dword
+  runs), and a stage-only-if-every-offset-reproduces rule. Key methodology
+  corrections recorded: (1) anchoring at min-own-offset masks parent-size drift -
+  GamePlayerController had LOST `CurrentSoundMode` in v845 and the resulting -8
+  byte shift of every GearPC-family object masqueraded as a GearPC/FortUpgradeList
+  stride bug; (2) member add/remove must be classified separately from pure
+  reorder before staging (109 MEMBER_DELTA classes hide inside what naive
+  offset-diffing calls "reorders"); (3) multiset-check both sides symmetrically.
+- Applied 7 simulation-proven reorders (AGearAI, GearEngine, FileWriter, GearGRI,
+  GearPawn_LocustCorpserLarvaUndergroundBase, GearSpawner,
+  SeqAct_DummyWeaponFire) plus the AGamePlayerController member removal.
+- RESULT: `GearGame-JudgmentLoader-v51.exe PkgInfo -JUDGMENTPKGVER=845` completes
+  with `Success - 0 error(s), 0 warning(s)` AND exits 0 through StaticExit purge
+  (`JudgmentLoader-v51.log`). The reorder-crash family is closed.
+- Remaining known deltas for the next phase (live-object instantiation readiness):
+  109 MEMBER_DELTA + 29 SIZE_MISMATCH classes from sweep_v3's buckets; plan is to
+  extend gen_native_block.py to emit full BEGIN/END PROPS blocks from package
+  payloads and sweep both buckets to OK.
