@@ -996,3 +996,45 @@ Known-good: v58 dev == v58 archive,
 SHA256 recorded in _Backups\sessionVIII-good snapshot lineage (v58 = Session IX telemetry build).
 Next: reconstruct the two GearHUD_Base functions from v845 payload evidence,
 then interactive input/locomotion validation on SP_Ravens_P.
+
+## Session X (2026-08-25): Marcus selection ROOT-CAUSED; canonical bootstrap seam identified
+
+New instrumentation ([JUDGPLAYER]): login URL/options + resolved GameInfo class
++ WorldInfo.DefaultGameType/GameTypes at login; every pawn-class SpawnActor
+request (class/template/owner); PlayerStart census at first tick.
+
+### Task B - why Marcus spawns: PROVEN
+```text
+login url=SP_Ravens_P options=?Name=Player 1?Team=255
+gamecls=GearGameSP_0        <- stock GoW3-lineage SP GameInfo from v845 set
+wi.DefaultGameType=(null)   <- SP_Ravens_P authors declare NO gametype
+wi.GameTypesNum=0
+pawn-spawn cls=GearPawn_COGMarcus template=(none) owner=(null)
+playerstart total=1 (PersistentLevel)
+```
+The map declares no GameType -> engine ini default selects GearGameSP ->
+its GoW3-era default character path yields Marcus. No Judgment campaign mode
+was ever engaged. NOT a layout/asset problem.
+
+### Canonical bootstrap seam: STRONGLY SUPPORTED
+v845 GearGame.u contains NO Judgment-specific campaign GameInfo subclass.
+SP family = GearGameSP / GearGameSP_Base / GearGameSP_Arcade (+ Generic).
+Campaign identity lives in data classes: GearCampaignActData /
+GearCampaignChapterData / GearCampaignGRI / EGearCampaignMemorySlot /
+EGearCampaignLobbyMode. Retail therefore drives campaign via frontend/
+profile/chapter state on top of GearGameSP(-Base), not via a map-declared or
+URL-selectable special GameInfo. `?game=GearGameSP_Base` (unqualified) fell
+back to GearGameGeneric with no pawn - qualified name + correct retail flow
+required; next experiment = qualified ?game=GearGame.GearGameSP_Base and
+chapter-data inspection (EGearCampaignMemorySlot consumers).
+
+### Also proven this session
+- PlayerStart census instrumentation answers streaming-spawn questions per map.
+- v59 build: dev == archive; regression oracle re-passed (v71) before use.
+- Session X runs: v74 (Ravens_P baseline, all stages PASS incl. Marcus),
+  v75 (selection probe).
+
+### Next oracle target
+Qualified-name GameInfo experiment + GearCampaignChapterData consumption trace
+to find the authentic Kilo Squad pawn-selection function (Task C), then input
+oracle (Task D) on whichever pawn is correctly possessed.
