@@ -851,8 +851,11 @@ gameplay path (GearStart.gear frontend) through the ENTIRE progression oracle:
 Run stayed alive 150+ s (frontend ticking, GFx attract mode cycling; one
 benign content gap: SwfMovie 'Attract_Opening_Cinematic' not present in this
 content set). Zero unbound-function events after the fixes below.
-JudgmentLoader-v66-boot.log. Binary: GearGame-JudgmentLoader-v57.exe,
-SHA256 5142FF4B048D79A6 (prefix; full hash in manifest update to follow).
+JudgmentLoader-v66-boot.log. Known-good binary:
+GearGame-JudgmentLoader-v57.exe
+SHA256 = 5142FF4B048D79A69D8F87A817BB83D419515F9C2BA18F1F56DDABA60F95ABC1
+Source snapshot: `_Backups\src-port-snapshot-20260824-sessionVII-good\`
+(focused patch for Session VII deltas to be exported next session).
 
 ### Victims fixed en route (each proven, in order)
 
