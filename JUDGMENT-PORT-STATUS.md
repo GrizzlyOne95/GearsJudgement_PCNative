@@ -748,3 +748,85 @@ explicitly deferred copyright decision):
 To reconstruct: copy Development\Src from snapshot (1) OR apply patch (2) to
 the pre-session state, rebuild via Temp\opencode\build-judgmentloader.bat,
 compare hash against (3).
+
+## Session VI (2026-08-24, evening): checkpoint, sweep re-baseline, gameplay-boot oracle established
+
+### 1. Session V source state PRESERVED
+
+- Full snapshot `_Backups\src-port-snapshot-20260824-sessionV-good\` (7,312 files).
+- Focused round-trip-VERIFIED patch
+  `patches\judgment-port\0006-sessionV-dup-vftable-strip.patch` (+ generator
+  `Temp\opencode\s5-make-patch.py`; apply with `git apply -p1`).
+- Known-good binary hash recorded in the manifest above (v54 exe SHA256).
+- Status-doc commit `2f5280a` captures the manifest itself (patch/snapshot kept
+  untracked by design - .gitignore deny-all over Epic content).
+
+### 2. Post-MI sweep re-baseline (sweep_v4.py)
+
+sweep_v4.py (committed to `_Backups\sessionVI-tools\`; sync to tooling repo)
+adds: MI-base-aware vtable entries + TAIL_PADDING_ONLY classification +
+C-style-comment stripping in decl parsing. New baseline over the same v49 dump:
+
+```text
+             v3(stale)   v4(post-S5)
+OK           1930        1987
+MEMBER_DELTA   71          16     (all real deltas now)
+SIZE_MISMATCH  29           1     (only GearPawn_COGMarcus +12)
+TAIL_PADDING_ONLY n/a      6     (ActorFactoryMover, AnimCompress x2,
+                                Distribution*Parameter x3)
+LAYOUT_DIFF     0          23     (classes w/ native-only member gaps -
+                                chain space cannot prove; probe-on-blocker)
+NO_PARENT_CHAIN 10         10
+```
+
+PROVEN: the old 19/29 backlog was dominated by MI-dup artifacts. Raw sizeof
+inequality is no longer actionable without extent proof (InterpTrackMove case).
+
+### 3. Gameplay-boot oracle + first two victims
+
+Added `[JUDGLIFE]` progression checkpoints (-JUDGLIFE gated):
+engine-init -> viewport-created -> local-player/pc-spawned ->
+map-load-start/url -> map-loaded -> world-first-tick(+pawn-check) ->
+first-render. Sites: UnGame.cpp (Init/LoadMap), UnLevAct.cpp (SpawnPlayActor),
+UnLevTic.cpp (UWorld::Tick), UnPlayer.cpp (ViewportClient::Draw); helper
+`JudgLifeCheckpoint` in Core (UnClass.cpp/JudgmentLoadDiag.h).
+
+Boot attempt #1 (GearStart.gear, no commandlet):
+- VICTIM 1 (FIXED): `Can't bind to native class Engine.ActorFactoryAmbientSoundSplineBase`
+  during Engine.u load. Judgment-era native absent from this tree.
+  Added `UActorFactoryAmbientSoundSplineBase : public UActorFactory`
+  (EngineClasses.h) + IMPLEMENT_CLASS (UnActorFactory.cpp). v845 evidence:
+  parent layout proven (size 92); no own props known.
+- Instrumented `-JUDGNATIVEBINDOK` (UnClass.cpp Bind()): demotes the bind
+  fatal to a warning listing each missing native, so ALL gaps enumerate in one
+  boot. Result: **213 missing natives** =
+  Engine 30 / GearGame 160 / UnrealEd 11 / GearEditor 12
+  (full list: `_Backups\sessionVI-tools\missing-natives-v58.txt`).
+  Top shapes: Object-based music/spline-audio structs, SequenceActions,
+  GearSpecialMoves, GoalPoints, editor browser types. All editor/gameplay
+  Kismet classes tolerate the flag (constructor inherited from super);
+  NOT for final use - real natives must be reconstructed per class.
+- Boot then advanced: viewport-created OK (GearGameViewportClient),
+  map-load-start url=GearStart OK.
+
+- VICTIM 2 (CURRENT WALL, precisely identified, NOT yet fixed):
+  `Failed to find object 'Class OnlineSubsystemLive.IpNetDriverLive'` ->
+  fallback `TcpNetDriver_0 listening on port 1000` -> fatal in
+  `UWorld::Listen()` during LoadMap(GearStart?listen). STRONGLY INDICATED:
+  OnlineSubsystemLive module is console-targeted and not compiled into the
+  Win32 GearGame target while the v845 script set names IpNetDriverLive as
+  net driver. Candidate fixes (need v845 oracle check before choosing):
+  redirect default NetDriver to a PC driver via ini/script defaults, or
+  compile a Win32 Live shim module.
+
+### Validation so far
+- v56 build links clean; PkgInfo path still exits 0 (unchanged behavior).
+- Boot run reaches engine init + viewport creation + map load start;
+  next oracle = survive Listen() -> map-loaded -> first tick/render.
+
+### Next session priorities
+1. Resolve Listen()/netdriver divergence (Victim 2) with v845-behavior evidence.
+2. Batch-reconstruct missing natives from missing-natives-v58.txt using
+   gen_native_block.py payloads; prioritize Engine audio/music + GearGame
+   gameplay classes over editor-only ones.
+3. Re-run boot until world-first-tick/pawn-check/first-render fire.
