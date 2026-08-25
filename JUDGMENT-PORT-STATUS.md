@@ -830,3 +830,76 @@ Boot attempt #1 (GearStart.gear, no commandlet):
    gen_native_block.py payloads; prioritize Engine audio/music + GearGame
    gameplay classes over editor-only ones.
 3. Re-run boot until world-first-tick/pawn-check/first-render fire.
+
+## Session VII (same evening): GAMEPLAY BOOT ACHIEVED - full lifecycle oracle green
+
+SUCCESS CRITERION MET. The Judgment runtime now boots the smallest real
+gameplay path (GearStart.gear frontend) through the ENTIRE progression oracle:
+
+```text
+[JUDGLIFE] viewport-created  GearGameViewportClient_0
+[JUDGLIFE] map-load          url=GearStart
+[JUDGLIFE] pc-spawned        GearPartyPC_0        (class GearPartyPC)
+[JUDGLIFE] local-player      GearLocalPlayer_0    (class GearLocalPlayer)
+[JUDGLIFE] map-loaded        GearEngine_0
+[JUDGLIFE] first-render      GearGameViewportClient_0   <- render pipeline live
+[JUDGLIFE] engine-init       GearEngine_0
+[JUDGLIFE] world-first-tick  TheWorld                   <- game loop live
+[JUDGLIFE] pawn-check        (null - expected: no pawn on frontend menu)
+```
+
+Run stayed alive 150+ s (frontend ticking, GFx attract mode cycling; one
+benign content gap: SwfMovie 'Attract_Opening_Cinematic' not present in this
+content set). Zero unbound-function events after the fixes below.
+JudgmentLoader-v66-boot.log. Binary: GearGame-JudgmentLoader-v57.exe,
+SHA256 5142FF4B048D79A6 (prefix; full hash in manifest update to follow).
+
+### Victims fixed en route (each proven, in order)
+
+1. `Can't bind to native class Engine.ActorFactoryAmbientSoundSplineBase`
+   (Engine.u load). FIX: reconstructed native class
+   UActorFactoryAmbientSoundSplineBase : UActorFactory (EngineClasses.h +
+   UnActorFactory.cpp). v845 evidence: parent layout proven size=92.
+
+2. AV at UWorld::Listen+0x176 (`cmp [eax+22Ch],10h` = GetGameInfo()->MaxPlayers>16,
+   eax=0x4974262c = StallZ float bits read as pointer).
+   ROOT CAUSE: native AWorldInfo carried a bogus `DWORD
+   JudgmentDoubleAlignmentPadding` before LastTimeUnbuiltLightingWasEncountered.
+   v845 chain proves the DOUBLE sits at @936 naturally 8-aligned after
+   StreamingLevels@924 - no pad member exists. The pad shifted EVERY member
+   after StreamingLevels +8 vs the imposed chain: serialization wrote Game@1172,
+   native read @1180 (= chain's StallZ float) -> garbage GameInfo pointer.
+   FIX: removed the pad (EngineGameEngineClasses.h). Post-fix compile probes:
+   sizeof(AWorldInfo)=2024, Game@1172, GRI@1128, NetMode@1132,
+   LMLevelSettings@1776, HostMigrationTimeout@2020 - ALL = v845 exactly
+   ([JUDGPROBE-WINFO], JudgmentLoader-v61-winfo.log). This was silently
+   corrupting WorldInfo reads for every package loaded since the pad was added.
+   PROVEN: first divergence = the pad dword; not a missing-member problem
+   (sweep's lmlevelsettings/visiblegroups flags are naming-only).
+
+3. NULL native dispatch `GearGame.AISystem:GetAIDebugTool` on Default__AISystem
+   during eventInitGame<-BeginPlay. ROOT CAUSE: class UAISystem absent from the
+   tree entirely (one of the 213). FIX: full reconstruction -
+   UAISystem : UObject, FCallbackEventDevice, FTickableObject with exact v845
+   prop layout (size 128; ETQSys@68..bSidekicksDontUseRoute@124), inert Tick
+   stubs (v845 tick behavior UNKNOWN), execGetAIDebugTool returning the AIDebug
+   object (body UNKNOWN - plausible-payload choice, documented), native table +
+   registrant entry (GearGameAIClasses.h, GearAI.cpp).
+
+### New diagnostics kept
+- `-JUDGNATIVEBINDOK`: Bind() demotes missing-native fatal to a warning listing
+  each class (213 enumerated); CallFunction fail-fasts naming any unbound
+  native function instead of calling NULL. Diagnostic-gated only; default path
+  still fails fast.
+- `[JUDGBIND][MISSING-FUNC]` names exact function+object when a script native
+  call would hit a NULL implementation.
+
+### Remaining / next oracle
+- 213-class missing-native backlog stands (list preserved); boot currently
+  needs none beyond AISystem for the frontend loop. Real campaign/map load and
+  pawn possession will surface the next genuine victims - reconstruct per
+  victim with gen_native_block.py payloads as they prove blocking.
+- pawn-check fires null on frontend by design; next boot target: a minimal
+  gameplay-capable map to drive possession + pawn class/defaults stages.
+- IpNetDriverLive remains unresolvable on Win32 (console module); TcpNetDriver
+  fallback now WORKS (Listen succeeds) so no fix required for SP boot.
