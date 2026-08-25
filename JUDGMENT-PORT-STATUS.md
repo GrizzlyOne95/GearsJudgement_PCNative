@@ -954,3 +954,45 @@ Source snapshot: `_Backups\src-port-snapshot-20260824-sessionVIII-good\`
   (gen_native_block.py) once they prove behavior-relevant beyond inertness.
 - The -JUDGNATIVEBINDOK flag remains REQUIRED for gameplay boots until the
   213-class backlog shrinks; default (flag-off) still fails fast.
+
+## Session IX (2026-08-25): SP_Ravens CAMPAIGN BOOTS - GearPC_SP possesses GearPawn_COGMarcus
+
+Baseline frozen: commit 2ff231b / v57 F2AD4375...92 (GearGame_P all-PASS
+regression re-verified on v58 telemetry build, JudgmentLoader-v71).
+
+### Campaign result (SP_Ravens_P direct boot, unchanged binary + telemetry)
+
+```text
+[JUDGLIFE] pc-spawned      GearPC_SP_0          (class GearPC_SP - campaign PC)
+[JUDGLIFE] pawn-check      GearPawn_COGMarcus_0 (class GearPawn_COGMarcus)
+[JUDGLIFE] pawn-owner-pc   GearPC_SP_0          <- POSSESSED
+map-loaded / first-render / engine-init / world-first-tick ALL PASS;
+run alive 110+s streaming weapon/character content + compiling shaders.
+GearHUDSP_0 instantiated (HUD alive). JudgmentLoader-v73-ravensP.log.
+```
+
+SP_Ravens_01 (composite entry chunk) loads fully but has no PlayerStart in its
+own persistent level ("Could not find a starting spot" after successful load) -
+spawn logic lives in streamed sublevels; needs frontend-style flow or a
+streaming-aware entry point. NOT a port defect: expected UE3 streaming behavior.
+
+### Stub dependency ledger (state assignments per live evidence)
+
+| Native | State | Evidence |
+| --- | --- | --- |
+| GearHUD_Base.CacheProjectionMatrix | REQUIRED(cand) | stubbed on live GearHUDSP; HUD projection math absent |
+| GearHUD_Base.DrawWeaponInfo | REQUIRED(cand) | stubbed on live GearHUDSP |
+| GearEngine.IsDebuggerAttached | OBSERVED | scalar ret; debug-only semantics |
+| SmartSpawner.SetInstance / RunVisibleSpawnPointsCheck | OBSERVED | called on AID map only; no consequence shown yet |
+| AIDirector.Init / AIDLogger.Log / GetAIDebugTool | OBSERVED | no gameplay consequence demonstrated |
+| GameplayMonitor.OnKill / GearGame.NotifyDeathCounters | OBSERVED | fired on test-map kill event |
+
+### Telemetry upgrade (kept permanently)
+`[JUDGBIND][STUB] cls= func= obj= ret= count=N` - first call logs full context
+incl. RETURN-SHAPE classification (void/scalar/object/STRUCT - non-scalar
+returns flagged for empirical coverage); repeats aggregate at 10/50/100/500/N*1000.
+
+Known-good: v58 dev == v58 archive,
+SHA256 recorded in _Backups\sessionVIII-good snapshot lineage (v58 = Session IX telemetry build).
+Next: reconstruct the two GearHUD_Base functions from v845 payload evidence,
+then interactive input/locomotion validation on SP_Ravens_P.
