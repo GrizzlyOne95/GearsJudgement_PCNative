@@ -906,3 +906,51 @@ Source snapshot: `_Backups\src-port-snapshot-20260824-sessionVII-good\`
   gameplay-capable map to drive possession + pawn class/defaults stages.
 - IpNetDriverLive remains unresolvable on Win32 (console module); TcpNetDriver
   fallback now WORKS (Listen succeeds) so no fix required for SP boot.
+
+## Session VIII (same night): PAWN POSSESSION REACHED - gameplay path stable
+
+Target: smallest real gameplay map. `GearGame_P.gear` (5KB persistent base)
+boots a complete AID-debug gameplay session. New lifecycle evidence:
+
+```text
+[JUDGLIFE] pc-spawned      GearPC_AID_0        (class GearPC_AID)
+[JUDGLIFE] pawn-check      GearPawn_COGBairdJack_0 (class GearPawn_COGBairdJack)
+[JUDGLIFE] pawn-owner-pc   GearPC_AID_0
+```
+-> pawn SPAWNED and POSSESSED; world ticking; run stayed alive 110+ s
+(JudgmentLoader-v70-gp.log). Combined with Session VII this completes every
+progression stage: engine init -> viewport -> local player -> world load ->
+PC instance -> pawn class/instance -> possession -> first tick -> first render.
+
+### Victims fixed en route
+1. FALSE-POSITIVE fatal: `JUDGMENT REPLACE_OVERFLOW cls=GearCameraShake
+   old=184 new=192` - the allocation-size ledger keyed raw addresses without
+   removing freed heap entries; a recycled DataStoreClient address tripped it.
+   GearCameraShake itself is CORRECT (192 in header/chain). FIX: ledger now
+   tracks PERMANENT-POOL objects only (original Session I purpose).
+2. UAISystem/AIDLogger follow-ups: replaced the per-function fail-fast with a
+   GENERIC unbound-native stub: CallFunction now warns once per function
+   ([JUDGBIND][MISSING-FUNC-STUB]) and routes through SkipFunction(), which
+   consumes the parameter stream exactly and zeroes the return value - safe
+   for ANY signature, no stack desync. Also reconstructed UAIDLogger
+   (size 112, v845 chain) as layout-correct native.
+3. UAISystem (Session VII) unchanged and working.
+
+### Stub work-list produced by live boot (for future faithful reconstruction)
+GearGame.SmartSpawner:SetInstance / :RunVisibleSpawnPointsCheck,
+GearGame.AIDirector:Init, GearGame.GearHUD_Base:CacheProjectionMatrix /
+:DrawWeaponInfo, GearGame.GearEngine:IsDebuggerAttached,
+GearGame.GameplayMonitor:OnKill, GearGame.AIDLogger:Log,
+GearGame.GearGame:NotifyDeathCounters (+ more as they fire).
+
+### Known-good state
+Binary: GearGame-JudgmentLoader-dev.exe == v57 content,
+SHA256 = F2AD43759E89ED9E9DF5BD68B490AD44A72E4ADD2DAF72136856C1DA8679FF92
+Source snapshot: `_Backups\src-port-snapshot-20260824-sessionVIII-good\`
+
+### Next oracle steps
+- Boot SP_Campaign map (e.g., SP_Ravens family) for real SP gametype flow.
+- Faithful reconstruction of stubbed functions using v845 payloads
+  (gen_native_block.py) once they prove behavior-relevant beyond inertness.
+- The -JUDGNATIVEBINDOK flag remains REQUIRED for gameplay boots until the
+  213-class backlog shrinks; default (flag-off) still fails fast.
