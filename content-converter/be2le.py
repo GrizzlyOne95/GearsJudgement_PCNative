@@ -343,7 +343,41 @@ class Converter:
                 pos = self.swap_seq(pos, widths)
             return True
 
-        if entry.get("elem") != "StructProperty":
+        elem_type = entry.get("elem")
+        if elem_type == "ByteProperty":
+            # Plain byte arrays serialize one byte each; enum-backed bytes serialize FNames.
+            if end - body == count:
+                return True
+            if end - body == count * 8:
+                pos = body
+                for _ in range(count):
+                    pos = self.swap_seq(pos, [4, 4])
+                return True
+            return False
+        primitive = {
+            "BoolProperty": [],
+            "IntProperty": [4], "FloatProperty": [4], "ObjectProperty": [4],
+            "ClassProperty": [4], "NameProperty": [4, 4],
+        }.get(elem_type)
+        if primitive is not None:
+            width = sum(primitive) if primitive else 1
+            if end - body != count * width:
+                return False
+            if primitive:
+                pos = body
+                for _ in range(count):
+                    pos = self.swap_seq(pos, primitive)
+            return True
+        if elem_type == "StrProperty":
+            def walk_strings():
+                pos = body
+                for _ in range(count):
+                    pos = self.fstring(pos)
+                    if pos is None or pos > end:
+                        return False
+                return pos == end
+            return self.try_region(body, end, walk_strings)
+        if elem_type != "StructProperty":
             return False
 
         def walk_elements():
@@ -407,6 +441,29 @@ class Converter:
         self.stats["bulk_element_sizes_retargeted"] += 1
         self.swap(off + 4, 4)
         return off + 8
+
+    def byte_bulk_data(self, off, end):
+        """Convert one FByteBulkData header and preserve byte-oriented payload data.
+
+        The four fields are flags, element count, on-disk size, and absolute file offset.
+        Inline payload bytes are codec data rather than host-endian scalars, so they remain
+        untouched. External/unused entries carry no bytes at the current archive position.
+        """
+        if off is None or off < 0 or off + 16 > end:
+            return None
+        flags = struct.unpack_from(">I", self.src, off)[0]
+        count, size, file_off = self.i32(off + 4), self.i32(off + 8), self.i32(off + 12)
+        separate_file, unused = 1 << 0, 1 << 5
+        unused_sentinel = ((flags & (separate_file | unused)) == (separate_file | unused)
+                           and count == 0 and size == -1 and file_off == -1)
+        if count < 0 or (size < 0 and not unused_sentinel) or (size > 0 and file_off < 0):
+            return None
+        data_off = off + 16
+        inline = not (flags & separate_file) and size > 0
+        if inline and (file_off != data_off or data_off + size > end):
+            return None
+        self.swap_seq(off, [4, 4, 4, 4])
+        return data_off + size if inline else data_off
 
     def tail_polys(self, off, end):
         """UPolys::Serialize, UnFPoly.cpp:1381 -- DbNum, DbMax, ElementOwner."""
@@ -613,9 +670,30 @@ class Converter:
             return None
         return self.swap_seq(off, [4])                   # empty EditorData map
 
+    def tail_sound_node_wave(self, off, end):
+        """USoundNodeWave::Serialize: Raw, PC, Xbox360, and PS3 FByteBulkData slots.
+
+        This makes Xbox-cooked waves structurally loadable but does not transcode XMA to Ogg.
+        Runtime validation of such packages must use -nosound until PC audio is supplied.
+        """
+        for _ in range(4):
+            off = self.byte_bulk_data(off, end)
+            if off is None:
+                return None
+        return off
+
+    def tail_single_int(self, off, end):
+        """Convert an exact one-INT native tail (empty container count or object reference)."""
+        if end - off != 4:
+            return None
+        return self.swap_seq(off, [4])
+
     NATIVE_TAILS = {"Polys": "tail_polys", "World": "tail_world", "Model": "tail_model",
                     "Level": "tail_level", "ShaderCache": "tail_shader_cache",
-                    "SoundCue": "tail_sound_cue"}
+                    "SoundCue": "tail_sound_cue", "SoundNodeWave": "tail_sound_node_wave",
+                    "RB_BodySetup": "tail_single_int", "BrushComponent": "tail_single_int",
+                    "StaticMeshComponent": "tail_single_int", "SeqAct_Interp": "tail_single_int",
+                    "ObjectRedirector": "tail_single_int"}
 
     def native_tail(self, class_name, off, end):
         """Swap a modelled native tail. True only if the model lands exactly on `end`."""

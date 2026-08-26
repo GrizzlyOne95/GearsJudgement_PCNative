@@ -420,3 +420,24 @@ The first full-package measurements also establish the next work order:
 
 Therefore the authentic frontend is not a thin next fixture: package-wide texture/audio
 conversion and relocation are the shortest path shared by both campaign and menu content.
+
+### `SP_E2_P` structural conversion increment
+
+`USoundNodeWave::Serialize` stores four `FByteBulkData` slots (raw, PC, Xbox 360, PS3). The
+converter now rewrites their flags/count/size/absolute-offset headers and preserves inline codec
+bytes as opaque data. All 254 Xbox XMA payloads remain in the Xbox slot; this is deliberately a
+structural-load milestone, not audio transcoding. Runtime testing of this intermediate package
+must use `-nosound`, which prevents PC audio precaching. Invalid inline offsets fail closed.
+
+Several source-proven exact four-byte native tails are also covered: empty `PreCachedPhysData` on
+`RB_BodySetup`, empty `CachedPhysBrushData`, empty `StaticMeshComponent.LODData`, empty
+`SeqAct_Interp.SavedActorTransforms`, and `ObjectRedirector.DestinationObject`. Primitive script
+arrays now handle strings, scalar/object/name values, byte/bool values, and enum-backed byte values
+(which UE3 serializes as FNames).
+
+Measured result: **1,378/1,433 exports fully converted**, zero partial property exports, 51
+unmodelled native tails, and four fully native `Class` payloads. The independent C++ manifest pass
+reports exact import/export table ends, zero invalid references, and **254/254 valid
+SoundNodeWave tagged/bulk-data payloads**. The remaining campaign blockers are now concentrated in
+24 textures and a small set of Model/Polys/Level, material, physics, FaceFX, mesh, and populated
+shader-cache serializers.
