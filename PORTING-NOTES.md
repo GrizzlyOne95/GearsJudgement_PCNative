@@ -617,3 +617,57 @@ the alpha headers.
   109 MEMBER_DELTA + 29 SIZE_MISMATCH classes from sweep_v3's buckets; plan is to
   extend gen_native_block.py to emit full BEGIN/END PROPS blocks from package
   payloads and sweep both buckets to OK.
+
+## Local Win32 Loader Validation Steps
+
+Because Jules operates in a headless Linux sandbox without the proprietary Win32 loader executable, the following checks must be performed locally in the Win32 loader environment:
+
+1. **ShaderCache Native Tail Validation**:
+   - Verify that converted `ShaderCache` exports deserialize with `SP_PCD3D_SM3=0` (converted from Xbox `SP_XBOXD3D=2`).
+   - Confirm that the runtime correctly binds `LocalShaderCache-PC-D3D-SM3.upk`.
+   - Verify that any non-zero Xbox shader/compressed-map counts trigger fail-closed rejection during package conversion.
+
+2. **FVert Bulk Array & Relocation Validation**:
+   - Verify that `TArray::BulkSerialize` validates element size 24 for PC vertex streams (compared to 16 for console).
+   - Test static/skeletal mesh loading in `GearGame-JudgmentLoader-v60-nativecontent.exe` to confirm no vertex attribute desynchronization occurs.
+   - Validate that relocated package export serial offsets and summary invariants pass `LoadPackage` commandlet checks with zero errors or warnings.
+
+3. **Runtime Execution & Log Verification**:
+   - Run local Win32 loader with `-log` and verify clean deserialization logs:
+     ```powershell
+     .\GearGame-JudgmentLoader-v60-nativecontent.exe LoadPackage GearGame_P.upk -log=JudgmentWin32Loader.log
+     ```
+   - Confirm world tick, pawn possession (`GearPawn_COGBairdJack`), and native AID spawning (`GearPC_AID`) complete without asserts or heap corruption.
+
+## Code and Tooling Reuse Analysis
+
+To avoid duplicating package-parsing logic across tools:
+
+- **`package-probe/src/main.cpp`**:
+  - Reuses C++ routines for summary/table parsing (`parseSummary`), LZX/LZO chunk decompression (`decompressXMemLzx`, `decompressSerializedBlob`), and bulk payload extraction.
+  - Reuses `ManifestResolver` for object path resolution and verification.
+
+- **Python Tooling (`v845_converter.py`, `redirect_imports.py`, `proptypes.py`)**:
+  - `v845_converter.py` provides the relocation-capable package rewrite layer, converting native export tails (`ShaderCache`, `FVert`) and recalculating export serial offsets and package summary fields.
+  - `redirect_imports.py` reuses manifest import table offsets to perform targeted import redirects without altering package structures.
+  - `proptypes.py` extracts property target types directly from script package manifests for ABI layout generation.
+
+## Staged Path to Retail Judgment Frontend and Campaign Levels
+
+Following the 2026-08-25 milestone where the Win32 loader booted a converted thin `GearGame_P` level end-to-end, the path forward is staged as follows:
+
+1. **Stage 1: Thin Level End-to-End Boot (Completed 2026-08-25)**
+   - Converted Judgment `GearGame_P` thin persistent level loaded successfully.
+   - All 10 exports converted, first render and world tick completed, `GearPC_AID` and `GearPawn_COGBairdJack` possessed.
+
+2. **Stage 2: Synthetic Fixtures & Relocation Layer (Current)**
+   - Implement `v845_converter.py` relocation layer for `ShaderCache` native tails and `FVert` 16-to-24 header retargeting/relocation.
+   - Synthetic regression test harness in `tests/test_v845_converter.py` ensuring table invariants and fail-closed safety.
+
+3. **Stage 3: First Full Campaign Level (`SP_00_Museum_P`)**
+   - Apply relocation converter to populated native structures in campaign maps (Models, StaticMeshes, Textures, Audio, Collision, Visibility).
+   - Convert `SP_00_Museum_Background_1_M` and `SP_00_Museum_P`, verifying level streaming and static mesh vertex buffer uploads on PC D3D3/SM3.
+
+4. **Stage 4: Retail Judgment Frontend and Menu Path**
+   - Convert Judgment frontend UI and menu packages (`UI_Frontend`, `UI_Main`).
+   - Validate Judgment menu state machine and character selection screens in the native Win32 loader.
