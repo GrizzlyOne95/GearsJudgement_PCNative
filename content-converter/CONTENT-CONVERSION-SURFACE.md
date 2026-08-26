@@ -358,3 +358,33 @@ remains unsupported because it would require widening each element and rebuildin
 Boot evidence: `C:\Games\_judgment-scratch\Judgment_GearGame_P.shaderfixed-boot3.log`.
 This is the first end-to-end native boot of the converted Judgment map; it does not use the older
 Gears 3 `GearGame_P.gear` control fixture.
+## Next real campaign fixture: SP_00_Museum_Base_Exit_S
+
+The next fixture is a small actual Judgment campaign streaming level rather than another empty
+persistent shell:
+
+- retail input: 32,768-byte LZX package;
+- decompressed package: 79,775 bytes, 217 names, 34 imports and 58 exports;
+- exports include 16 CoverLinks, 17 CylinderComponents, Level, Model, World, Polys, Sequence,
+  ShaderCache, SoundCue and gameplay sequence objects.
+
+The v845 script manifests were regenerated for all 13 script packages and produced an
+ArrayProperty index with 3,571 owner/property keys and 3,573 declarations. With that index the
+converter now finishes this fixture deterministically and reports:
+
+- 41 exports fully converted;
+- 16 partial CoverLink exports whose `Slots` arrays contain binary-serialized immutable
+  `CoverSlot` structs;
+- one unmodelled populated Level tail (2,932 bytes);
+- no remaining SoundCue tail: its stripped four-byte empty `EditorData` TMap is now modelled.
+
+A bogus speculative ArrayProperty candidate originally produced an enormous loop count. The
+shared TArray walker and binary-struct candidate walker now apply file/region-derived count bounds,
+turning that case into an immediate fail-closed result. Export statistics also distinguish partial
+property conversion from fully converted exports, so unsupported `CoverSlot` data can no longer be
+reported as complete.
+
+The next implementation boundary is therefore exact and local: model `FCoverSlot`'s
+`STRUCT_ImmutableWhenCooked` binary serialization, then decode the populated ULevel tail. A
+populated width-changing structure must use relocation-capable rewriting rather than same-length
+swapping.
