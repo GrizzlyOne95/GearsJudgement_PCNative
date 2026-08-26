@@ -682,6 +682,36 @@ class Converter:
                 return None
         return off
 
+    def texture_mips(self, off, end):
+        """Convert TIndirectArray<FTexture2DMipMap> framing, preserving opaque mip bytes."""
+        if off is None or off + 4 > end:
+            return None
+        count = self.i32(off)
+        self.swap(off, 4)
+        off += 4
+        if count < 0 or count > (end - off) // 24:
+            return None
+        for _ in range(count):
+            off = self.byte_bulk_data(off, end)
+            if off is None or off + 8 > end:
+                return None
+            off = self.swap_seq(off, [4, 4])            # SizeX, SizeY
+        return off
+
+    def tail_texture2d(self, off, end):
+        """Structurally convert UTexture/UTexture2D native data without detiling pixels.
+
+        SourceArt and mip allocations are byte-oriented bulk payloads. Their metadata, counts,
+        dimensions and cache GUID are endian-converted; tiled Xbox pixels remain opaque. Use
+        -nullrhi for runtime validation until the package-wide detiler supplies PC mip data.
+        """
+        off = self.byte_bulk_data(off, end)              # UTexture::SourceArt
+        off = self.texture_mips(off, end)                # UTexture2D::Mips
+        if off is None or off + 16 > end:
+            return None
+        off = self.swap_seq(off, [4, 4, 4, 4])           # TextureFileCacheGuid
+        return self.texture_mips(off, end)               # CachedPVRTCMips
+
     def tail_single_int(self, off, end):
         """Convert an exact one-INT native tail (empty container count or object reference)."""
         if end - off != 4:
@@ -691,6 +721,7 @@ class Converter:
     NATIVE_TAILS = {"Polys": "tail_polys", "World": "tail_world", "Model": "tail_model",
                     "Level": "tail_level", "ShaderCache": "tail_shader_cache",
                     "SoundCue": "tail_sound_cue", "SoundNodeWave": "tail_sound_node_wave",
+                    "Texture2D": "tail_texture2d",
                     "RB_BodySetup": "tail_single_int", "BrushComponent": "tail_single_int",
                     "StaticMeshComponent": "tail_single_int", "SeqAct_Interp": "tail_single_int",
                     "ObjectRedirector": "tail_single_int"}
