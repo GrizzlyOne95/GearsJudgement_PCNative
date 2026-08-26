@@ -146,4 +146,3 @@ def main(out_path, manifest_args):
 
 if __name__ == "__main__":
     main(sys.argv[1], sys.argv[2:])
-

@@ -358,4 +358,3 @@ remains unsupported because it would require widening each element and rebuildin
 Boot evidence: `C:\Games\_judgment-scratch\Judgment_GearGame_P.shaderfixed-boot3.log`.
 This is the first end-to-end native boot of the converted Judgment map; it does not use the older
 Gears 3 `GearGame_P.gear` control fixture.
-
