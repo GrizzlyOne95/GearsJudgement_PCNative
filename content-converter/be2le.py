@@ -743,4 +743,3 @@ def main(src_path, out_path, index_path=None):
 
 if __name__ == "__main__":
     main(*sys.argv[1:4])
-
