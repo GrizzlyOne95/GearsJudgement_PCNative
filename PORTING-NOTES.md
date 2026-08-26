@@ -617,3 +617,97 @@ the alpha headers.
   109 MEMBER_DELTA + 29 SIZE_MISMATCH classes from sweep_v3's buckets; plan is to
   extend gen_native_block.py to emit full BEGIN/END PROPS blocks from package
   payloads and sweep both buckets to OK.
+
+## Staged Content Plan: From `GearGame_P` to Campaign Level and Retail Frontend
+
+This section outlines the concrete, evidence-backed staged plan for advancing Judgment content conversion from the verified `GearGame_P` thin persistent level milestone to a full campaign level (`SP_00_Museum_P`) and the retail frontend/menu (`GearFrontend_P`).
+
+### 1. Conversion Stages
+
+#### Stage 0: Thin Map Baseline (`GearGame_P`) — *Completed Baseline*
+- **Target**: `GearGame_P.xxx` (v845 package, 10 exports including native tails).
+- **Achievements**: Native Win32 loader boots level end-to-end; `GearPC_AID` spawns; `GearPawn_COGBairdJack` spawns and is possessed.
+- **Conversion Boundary**: Native property graphs and empty native tails (empty `ShaderCache`, empty `FVert` bulk header retargeted 16 -> 24 bytes).
+
+#### Stage 1: Single Real Campaign Level (`SP_00_Museum_P` / `SP_00_Museum_Background_1_M`)
+- **Target**: `SP_00_Museum_P.xxx` and primary sub-levels/background packages.
+- **Dependencies**:
+  1. Base script packages: `Core.u`, `Engine.u`, `GearGame.u` (v845 native ABI aligned).
+  2. Global audio and localization packages (`AID_COMMON_SF_LOC_INT.xxx`, `AIDE_215_SF_LOC_INT.xxx`).
+  3. Shared texture file caches (`Textures.tfc`, `CharTextures.tfc`, `Lighting.tfc`).
+  4. Level geometry, collision models (`FVert` relocation handling), static meshes, and lightmaps.
+- **Goal**: Complete level load, stream background/sub-levels, spawn player pawn and AI combatants, execute level script sequences, and process world ticks without heap or serialization corruption.
+
+#### Stage 2: Retail Judgment Frontend/Menu (`GearFrontend_P`)
+- **Target**: `GearFrontend_P.xxx` persistent level and frontend Scaleform/GFx UI packages.
+- **Dependencies**:
+  1. UI script classes (`GearGame` menu state machines and HUD controllers).
+  2. UI audio banks, localized font packages, and frontend UI textures/materials.
+  3. `GuidCache.xxx` and startup package group.
+- **Goal**: Boot directly into the Judgment main menu, process menu navigation and inputs, load player profile configurations offline, and permit campaign mission selection.
+
+---
+
+### 2. Dependency Ordering & Conversion Workflow
+
+Content conversion follows a strict topological dependency order to ensure referenced imports are available before owning packages deserialize:
+
+```
+[Core.u / Engine.u / GearGame.u (Scripts)]
+        │
+        ▼
+[GuidCache.upk / Global Shared Packages]
+        │
+        ├──► [Audio Packages (XMA2 -> Ogg Vorbis)]
+        ├──► [Texture Packages & TFC Mips (BC1/DXT Detiling & Mip-Tail Recovery)]
+        └──► [Static Mesh & Geometry Packages (FVert / ShaderCache Retargeting)]
+                │
+                ▼
+        [Level Packages: SP_00_Museum_P / GearFrontend_P]
+```
+
+1. **Script & Core Alignment**: Endian-convert and align script packages (`Core`, `Engine`, `GearGame`) with native C++ class declarations.
+2. **Media Transcoding**:
+   - Transcode XMA2 audio bulk data into PC Ogg Vorbis streams using `package-probe` + `vgmstream` + `libvorbis` pipeline.
+   - Detile Xbox BC1/DXT textures and extract external TFC mip arrays into PC-native `Texture2D` inline bulk payloads.
+3. **Geometry & Model Reserialization**:
+   - Convert `FVert` bulk arrays (empty: 16 -> 24 byte retarget; populated: widen elements and relocate package offsets using `v845_package_rewrite.py`).
+   - Retarget `ShaderCache` tails (empty: `SP_XBOXD3D` -> `SP_PCD3D_SM3`; populated Xbox shader data fails closed).
+4. **Level Assembly**: Rewrite package summaries, name/import/export tables, serial offsets, and sizes into little-endian v828/v845 PC-native packages.
+
+---
+
+### 3. Conversion Gates (Verification Checkpoints)
+
+Each asset/package must pass five automated conversion gates before promotion to integration builds:
+
+| Gate | Name | Validation Criteria | Tooling / Check |
+| --- | --- | --- | --- |
+| **Gate 1** | **Structural Integrity** | Valid summary, name/import/export maps, dependency table, and exact export-boundary closure with zero offset gaps. | `v845_package_rewrite.py`, `package-probe --manifest` |
+| **Gate 2** | **Native Tail & Bulk** | Empty `ShaderCache` retargeted to `SP_PCD3D_SM3`; empty `FVert` header widened to 24 bytes; populated width changes relocated or failed closed. | `tests/test_v845_rewrite.py` |
+| **Gate 3** | **Media Fidelity** | Audio decoded to PCM matches expected duration/rate; texture mips detiled with acceptable pixel MAE/RMSE; packed mip-tails recovered. | `package-probe`, standalone Ogg Vorbis / BC1 decoders |
+| **Gate 4** | **Deserialization Acceptance** | Unmodified Win64 `LoadPackage` commandlet or native editor loads converted package with `0 error(s), 0 warning(s)`. | Diagnostic editor build / commandlets |
+| **Gate 5** | **Runtime Execution** | Executable loads level, initializes RHI resources, completes world tick, and executes pawn possession without heap corruption or crashes. | Win32 local loader log validation |
+
+---
+
+### 4. Observability & Telemetry
+
+To ensure deterministic debugging without proprietary runtime assertions:
+
+- **Synthetic Fixture Validation**: Python test suite (`tests/test_v845_rewrite.py`, `tests/test_redirect_imports.py`) verifies conversion logic synthetically.
+- **Diagnostic Logging**: Win32 loader telemetry flags (`-JUDGMENTCDOWATCH`, `JUDGMENT_LINKER_SUMMARY_SMASH`, `JUDGMENT_LAYOUTALL`) track CDO replacements, object lifecycle invariants, and class layout property alignment.
+- **SHA-256 Provenance**: All generated conversion fixtures log input/output SHA-256 hashes for reproducible build chains.
+
+---
+
+### 5. Campaign-Only and Co-op Scope
+
+- **In-Scope**:
+  - Full single-player Judgment campaign story mode (`SP_*` levels).
+  - Campaign co-op model mirroring the Gears of War 2 Hollow Steam co-op architecture (local split-screen / P2P coop session management).
+  - Retail frontend main menu (`GearFrontend_P`) for campaign mission launch and options.
+- **Out-of-Scope**:
+  - Competitive multiplayer (`MP_*` levels, dedicated server infrastructure, matchmaking).
+  - Xbox Live (XLive) network dependencies, title services, and platform DRM checks.
+  - Proprietary game binaries, extracted retail assets, or unverified XEX/PDB files in repository commits.
