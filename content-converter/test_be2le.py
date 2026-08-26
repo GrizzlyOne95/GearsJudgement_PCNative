@@ -1,5 +1,9 @@
 import struct
+import sys
 import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from be2le import Converter
 
