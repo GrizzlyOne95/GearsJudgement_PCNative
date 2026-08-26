@@ -43,3 +43,22 @@ Run its synthetic tests with:
 ```powershell
 python -m unittest discover -s tests -v
 ```
+
+## Native-content regression checks
+
+The thin Judgment `GearGame_P` fixture is hash-pinned locally without committing retail data.
+The verifier checks the decompressed retail input, generated v845 array schema, deterministic
+converter output, and staged map before reporting success:
+
+```powershell
+.\content-converter\verify-thin-map.ps1
+```
+
+The loader build is also permanent rather than dependent on a temporary batch file. With no
+version tag it refreshes the fixed development executable; a tag archives a separate artifact
+and refuses to overwrite it unless `-Force` is supplied:
+
+```powershell
+.\scripts\build-judgment-loader.ps1
+.\scripts\build-judgment-loader.ps1 -VersionTag v61-nativecontent
+```

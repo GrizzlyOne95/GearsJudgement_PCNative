@@ -55,6 +55,30 @@ class NativePlatformTailTests(unittest.TestCase):
         self.assertFalse(accepted)
         self.assertEqual(bytes(converter.out), source)
 
+    def test_apex_cached_payload_over_16_bytes_fails_closed(self):
+        source = struct.pack(">i", 17) + (b"A" * 17)
+        converter = Converter(source)
+
+        self.assertIsNone(converter.apex_cached_blob(0))
+        self.assertEqual(bytes(converter.out), source)
+
+    def test_apex_16_byte_sentinel_swaps_size_and_preserves_bytes(self):
+        sentinel = bytes(range(16))
+        source = struct.pack(">i", 16) + sentinel
+        converter = Converter(source)
+
+        self.assertEqual(converter.apex_cached_blob(0), len(source))
+        self.assertEqual(bytes(converter.out), struct.pack("<i", 16) + sentinel)
+
+    def test_distance_field_colors_keep_channel_order(self):
+        colors = bytes.fromhex("11 22 33 44 AA BB CC DD")
+        source = struct.pack(">i", 2) + colors
+        converter = Converter(source)
+
+        self.assertEqual(converter.opaque_array(0, 4), len(source))
+        self.assertEqual(bytes(converter.out[:4]), struct.pack("<i", 2))
+        self.assertEqual(bytes(converter.out[4:]), colors)
+
 
 if __name__ == "__main__":
     unittest.main()

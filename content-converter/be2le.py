@@ -480,6 +480,32 @@ class Converter:
         self.swap(off, 4)
         return off + 4 + count if count >= 0 else None
 
+    def opaque_array(self, off, element_size):
+        """TArray of byte-oriented elements: swap the count, preserve element bytes."""
+        if off is None or off < 0 or off + 4 > len(self.src) or element_size < 0:
+            return None
+        count = self.i32(off)
+        self.swap(off, 4)
+        data_off = off + 4
+        if count < 0 or count > (len(self.src) - data_off) // max(element_size, 1):
+            return None
+        return data_off + count * element_size
+
+    def apex_cached_blob(self, off):
+        """Convert the APEX cache length and preserve only its ignored short sentinel bytes.
+
+        ULevel::Serialize feeds cache data to APEX only when Size > 16. Values through 16 are
+        consumed byte-by-byte and ignored, so their bytes are endian-neutral. A larger payload
+        is platform-native APEX data and deliberately fails closed until explicitly modelled.
+        """
+        if off is None or off < 0 or off + 4 > len(self.src):
+            return None
+        size = self.i32(off)
+        if size < 0 or size > 16 or off + 4 + size > len(self.src):
+            return None
+        self.swap(off, 4)
+        return off + 4 + size
+
     def furl(self, off):
         """FURL, UnURL.cpp:79. Serialisation order is NOT the struct's memory order --
         Protocol, Host, Map, Portal, Op, Port, Valid (the PDB shows Port sitting between
@@ -513,11 +539,9 @@ class Converter:
             off = self.tmap(off)
             if off is None:
                 return None
-        size = self.i32(off)                             # APEX cached data: size then opaque bytes
-        off = self.swap_seq(off, [4])
-        if size < 0:
+        off = self.apex_cached_blob(off)                 # APEX cache; >16-byte payload unsupported
+        if off is None:
             return None
-        off += size
         off = self.bulk(off)                             # CachedPhysBSPData
         if off is None:
             return None
@@ -557,7 +581,8 @@ class Converter:
         off = self.swap_seq(off, [4])                    # VolumeMaxDistance
         off = self.swap_seq(off, ATOMIC_STRUCT["Box"])   # VolumeBox
         off = self.swap_seq(off, [4, 4, 4])              # VolumeSizeX/Y/Z
-        return self.tarray(off, lambda p: self.swap_seq(p, [4]))    # Data
+        # Data is TArray<FColor>. FColor is four byte channels, not a DWORD; preserve RGBA order.
+        return self.opaque_array(off, 4)                 # Data
 
     def tail_shader_cache(self, off, end):
         """Convert the empty seek-free cache emitted into Judgment's thin P-levels.
