@@ -79,6 +79,72 @@ class NativePlatformTailTests(unittest.TestCase):
         self.assertEqual(bytes(converter.out[:4]), struct.pack("<i", 2))
         self.assertEqual(bytes(converter.out[4:]), colors)
 
+    def test_sound_wave_bulk_headers_convert_and_xma_bytes_stay_opaque(self):
+        xma = bytes.fromhex("10 20 30 40 50 60")
+        empty = struct.pack(">Iiii", 0, 0, 0, 0)
+        xbox_header_offset = len(empty) * 2
+        xbox_data_offset = xbox_header_offset + 16
+        xbox = struct.pack(">Iiii", 0, len(xma), len(xma), xbox_data_offset) + xma
+        source = empty + empty + xbox + empty
+        converter = Converter(source)
+
+        self.assertTrue(converter.native_tail("SoundNodeWave", 0, len(source)))
+        self.assertEqual(bytes(converter.out[xbox_data_offset:xbox_data_offset + len(xma)]), xma)
+        self.assertEqual(struct.unpack_from("<Iiii", converter.out, xbox_header_offset),
+                         (0, len(xma), len(xma), xbox_data_offset))
+
+    def test_sound_wave_inline_bulk_offset_mismatch_fails_closed(self):
+        bad = struct.pack(">Iiii", 0, 4, 4, 99) + b"XMA!"
+        empty = struct.pack(">Iiii", 0, 0, 0, 0)
+        source = empty + empty + bad + empty
+        converter = Converter(source)
+
+        self.assertFalse(converter.native_tail("SoundNodeWave", 0, len(source)))
+        self.assertEqual(bytes(converter.out), source)
+
+    def test_exact_single_int_native_tail_converts(self):
+        source = struct.pack(">i", 0)
+        converter = Converter(source)
+
+        self.assertTrue(converter.native_tail("RB_BodySetup", 0, len(source)))
+        self.assertEqual(bytes(converter.out), struct.pack("<i", 0))
+
+    def test_single_int_native_tail_rejects_extra_data(self):
+        source = struct.pack(">ii", 0, 0)
+        converter = Converter(source)
+
+        self.assertFalse(converter.native_tail("StaticMeshComponent", 0, len(source)))
+        self.assertEqual(bytes(converter.out), source)
+
+    def test_string_array_elements_convert(self):
+        source = struct.pack(">i", 2) + struct.pack(">i", 3) + b"hi\0" + struct.pack(">i", 2) + b"x\0"
+        converter = Converter(source, {"Labels": [{"elem": "StrProperty", "struct": None,
+                                                     "widths": None}]})
+
+        converter.array_value([], 0, len(source), 0, "Labels")
+        self.assertEqual(bytes(converter.out),
+                         struct.pack("<i", 2) + struct.pack("<i", 3) + b"hi\0" +
+                         struct.pack("<i", 2) + b"x\0")
+        self.assertEqual(converter.unsupported, {})
+
+    def test_byte_array_elements_preserve_bytes(self):
+        source = struct.pack(">i", 4) + bytes.fromhex("01 02 FE FF")
+        converter = Converter(source, {"Modes": [{"elem": "ByteProperty", "struct": None,
+                                                    "widths": None}]})
+
+        converter.array_value([], 0, len(source), 0, "Modes")
+        self.assertEqual(bytes(converter.out), struct.pack("<i", 4) + bytes.fromhex("01 02 FE FF"))
+        self.assertEqual(converter.unsupported, {})
+
+    def test_enum_byte_array_elements_convert_fnames(self):
+        source = struct.pack(">i", 2) + struct.pack(">iiii", 7, 0, 9, 1)
+        converter = Converter(source, {"Modes": [{"elem": "ByteProperty", "struct": None,
+                                                    "widths": None}]})
+
+        converter.array_value([], 0, len(source), 0, "Modes")
+        self.assertEqual(bytes(converter.out), struct.pack("<iiiii", 2, 7, 0, 9, 1))
+        self.assertEqual(converter.unsupported, {})
+
 
 if __name__ == "__main__":
     unittest.main()
