@@ -145,6 +145,32 @@ class NativePlatformTailTests(unittest.TestCase):
         self.assertEqual(bytes(converter.out), struct.pack("<iiiii", 2, 7, 0, 9, 1))
         self.assertEqual(converter.unsupported, {})
 
+    def test_texture2d_metadata_converts_while_mip_bytes_stay_opaque(self):
+        empty_bulk = struct.pack(">Iiii", 0, 0, 0, 0)
+        pixels = bytes.fromhex("DE AD BE EF")
+        mip_header_offset = 20
+        mip_data_offset = mip_header_offset + 16
+        mip = struct.pack(">Iiii", 0, len(pixels), len(pixels), mip_data_offset)
+        guid_words = (0x11223344, 0x55667788, 0x10203040, 0x50607080)
+        source = (empty_bulk + struct.pack(">i", 1) + mip + pixels +
+                  struct.pack(">ii", 64, 32) + struct.pack(">IIII", *guid_words) +
+                  struct.pack(">i", 0))
+        converter = Converter(source)
+
+        self.assertTrue(converter.native_tail("Texture2D", 0, len(source)))
+        self.assertEqual(bytes(converter.out[mip_data_offset:mip_data_offset + len(pixels)]), pixels)
+        self.assertEqual(struct.unpack_from("<ii", converter.out, mip_data_offset + len(pixels)),
+                         (64, 32))
+        self.assertEqual(struct.unpack_from("<IIII", converter.out,
+                                            mip_data_offset + len(pixels) + 8), guid_words)
+
+    def test_texture2d_impossible_mip_count_fails_closed(self):
+        source = struct.pack(">Iiii", 0, 0, 0, 0) + struct.pack(">i", 0x10000000)
+        converter = Converter(source)
+
+        self.assertFalse(converter.native_tail("Texture2D", 0, len(source)))
+        self.assertEqual(bytes(converter.out), source)
+
 
 if __name__ == "__main__":
     unittest.main()

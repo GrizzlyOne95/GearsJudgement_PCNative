@@ -435,9 +435,28 @@ Several source-proven exact four-byte native tails are also covered: empty `PreC
 arrays now handle strings, scalar/object/name values, byte/bool values, and enum-backed byte values
 (which UE3 serializes as FNames).
 
-Measured result: **1,378/1,433 exports fully converted**, zero partial property exports, 51
-unmodelled native tails, and four fully native `Class` payloads. The independent C++ manifest pass
-reports exact import/export table ends, zero invalid references, and **254/254 valid
-SoundNodeWave tagged/bulk-data payloads**. The remaining campaign blockers are now concentrated in
-24 textures and a small set of Model/Polys/Level, material, physics, FaceFX, mesh, and populated
-shader-cache serializers.
+Measured result after the audio/array pass: **1,378/1,433 exports fully converted**, zero partial
+property exports, 51 unmodelled native tails, and four fully native `Class` payloads. The
+independent C++ manifest pass reports exact import/export table ends, zero invalid references, and
+**254/254 valid SoundNodeWave tagged/bulk-data payloads**.
+
+`UTexture2D::Serialize` is now covered structurally: SourceArt and every mip's `FByteBulkData`
+metadata, mip counts/dimensions, the texture-file-cache GUID, and cached PVRTC mip framing are
+endian-converted while tiled Xbox pixel bytes remain opaque. This is intentionally a `-nullrhi`
+load milestone, not a rendering claim; package-wide detiling and PC texture resource construction
+remain separate work. Impossible mip counts and invalid inline offsets fail closed.
+
+That pass raises `SP_E2_P` to **1,402/1,433 exports fully converted**, zero partial exports, 27
+unmodelled native tails, and four native `Class` payloads. Independent validation reports exact
+package tables, zero invalid references, **24/24 valid Texture2D bulk/mip frames**, and the previous
+**254/254 valid SoundNodeWave frames**.
+
+A uniquely staged diagnostic load of the converted campaign package reached the real v845 file
+reader and map loader under `-nosound -nullrhi`. It then stopped at the first unconverted payload,
+`Class GearEditor.UpdateGameplayParticleSystems`, in `UClass::Serialize` with a bogus import index.
+This is the expected fail-closed boundary and establishes the next work order: convert the exact
+`UField`/`UStruct`/`UState`/`UClass` persistent layout before addressing the remaining
+Model/Polys/Level, material, physics, FaceFX, mesh, and populated ShaderCache serializers.
+
+Diagnostic evidence:
+`C:\Games\_judgment-scratch\Judgment_SP_E2_P.structural-v1.log`.
