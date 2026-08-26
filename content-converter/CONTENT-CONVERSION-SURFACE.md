@@ -388,3 +388,35 @@ The next implementation boundary is therefore exact and local: model `FCoverSlot
 `STRUCT_ImmutableWhenCooked` binary serialization, then decode the populated ULevel tail. A
 populated width-changing structure must use relocation-capable rewriting rather than same-length
 swapping.
+
+## Correctness and reproducibility audit (2026-08-26)
+
+An independent four-lane Ox Alpha audit found two places where a real Level could have been
+reported as converted while retaining invalid bytes. Both now have explicit fail-closed rules and
+regression tests:
+
+- APEX cached data is serialized as a size plus raw bytes. `ULevel::Serialize` only hands the
+  buffer to APEX when `Size > 16`; the observed thin and Museum levels both carry exactly the
+  ignored 16-byte sentinel. The converter swaps its length and preserves the byte-oriented
+  sentinel, but rejects any payload larger than 16 until that platform-native format is modelled.
+- `FPrecomputedVolumeDistanceField::Data` is `TArray<FColor>`. Its four channels are serialized as
+  bytes, so only the array count is endian-swapped; reversing each four-byte color would change
+  RGBA channel order.
+
+The verified thin-map output remains byte-for-byte identical after these guards:
+`0849E7EA6E0DD73DDCECE8DB787A4B5B591C75E9EA1BF036ECA19389590D5353`.
+`verify-thin-map.ps1` now pins the retail input, array-schema index, converted output, and staged
+map hashes. `scripts/build-judgment-loader.ps1` makes the previously temporary loader build recipe
+reproducible.
+
+The first full-package measurements also establish the next work order:
+
+- `SP_E2_P`: 1,077/1,433 exports fully converted; remaining serial mass is primarily 254
+  `SoundNodeWave`, three `SkeletalMesh`, 24 `Texture2D`, and one populated `ShaderCache`.
+- `GearStartTransition`: 147/193 exports fully converted, but still depends on textures, three
+  large audio waves, populated shader data, Model/Level data, and one native light component.
+- retail `GearStart`: 622/1,676 exports fully converted and is dominated by 955 `Texture2D`
+  exports (86 MB), plus 30 `SwfMovie` and 29 `SoundNodeWave` exports.
+
+Therefore the authentic frontend is not a thin next fixture: package-wide texture/audio
+conversion and relocation are the shortest path shared by both campaign and menu content.
