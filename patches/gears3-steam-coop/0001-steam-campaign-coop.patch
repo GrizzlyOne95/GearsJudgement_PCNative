@@ -568,3 +568,75 @@ index f1e0d75..fa34197 100644
  }
  
  /**
+diff --git a/Development/Src/OnlineSubsystemSteamworks/Src/UOnlineGameInterfaceSteamworks.cpp b/Development/Src/OnlineSubsystemSteamworks/Src/UOnlineGameInterfaceSteamworks.cpp
+index 1e69316..8bf5fa9 100644
+--- a/Development/Src/OnlineSubsystemSteamworks/Src/UOnlineGameInterfaceSteamworks.cpp
++++ b/Development/Src/OnlineSubsystemSteamworks/Src/UOnlineGameInterfaceSteamworks.cpp
+@@ -161,6 +161,13 @@ UBOOL UOnlineGameInterfaceSteamworks::StartOnlineGame(FName SessionName)
+ 		if (Return == S_OK || Return == ERROR_IO_PENDING)
+ 		{
+ 			CurrentGameState = OGS_InProgress;
++			// Gears reads OnlineGameSettings.GameState directly when deciding
++			// whether an accepted party invite is valid. Keep the public settings
++			// object synchronized with the Steam interface's private state.
++			if (GameSettings != NULL)
++			{
++				GameSettings->GameState = OGS_InProgress;
++			}
+ 		}
+ 		if (Return != ERROR_IO_PENDING)
+ 		{
+@@ -239,6 +246,10 @@ UBOOL UOnlineGameInterfaceSteamworks::EndOnlineGame(FName SessionName)
+ 		if (Return == ERROR_IO_PENDING)
+ 		{
+ 			CurrentGameState = OGS_Ending;
++			if (GameSettings != NULL)
++			{
++				GameSettings->GameState = OGS_Ending;
++			}
+ 		}
+ 		// Fire delegates off if not async or in error
+ 		if (Return != ERROR_IO_PENDING)
+@@ -247,6 +258,10 @@ UBOOL UOnlineGameInterfaceSteamworks::EndOnlineGame(FName SessionName)
+ 			FAsyncTaskDelegateResultsNamedSession Params(SessionName,Return);
+ 			TriggerOnlineDelegates(this,EndOnlineGameCompleteDelegates,&Params);
+ 			CurrentGameState = OGS_Ended;
++			if (GameSettings != NULL)
++			{
++				GameSettings->GameState = OGS_Ended;
++			}
+ 		}
+ 		Result = ( Return == S_OK || Return == ERROR_IO_PENDING );
+ 	}
+@@ -1408,6 +1423,10 @@ UBOOL UOnlineGameInterfaceSteamworks::CreateOnlineGame(BYTE HostingPlayerNum,FNa
+ 		if (Return == S_OK || Return == ERROR_IO_PENDING)
+ 		{
+ 			CurrentGameState = OGS_Pending;
++			if (GameSettings != NULL)
++			{
++				GameSettings->GameState = OGS_Pending;
++			}
+ 		}
+ 		if (Return != ERROR_IO_PENDING)
+ 		{
+@@ -1551,6 +1570,9 @@ UBOOL UOnlineGameInterfaceSteamworks::UpdateOnlineGame(FName SessionName,UOnline
+ 		if (UpdatedGameSettings != NULL)
+ 		{
+ 			GameSettings = UpdatedGameSettings;
++			// Callers commonly replace the settings object while a party remains
++			// active. Do not let the replacement fall back to OGS_NoSession.
++			GameSettings->GameState = CurrentGameState;
+ 			RefreshPublishedGameSettings();
+ 		}
+ 		else
+@@ -1624,6 +1646,10 @@ UBOOL UOnlineGameInterfaceSteamworks::JoinOnlineGame(BYTE PlayerNum,FName Sessio
+ 		{
+ 			// Set the state so that StartOnlineGame() can work
+ 			CurrentGameState = OGS_Pending;
++			if (GameSettings != NULL)
++			{
++				GameSettings->GameState = OGS_Pending;
++			}
+ 		}
+ 		if (Return != ERROR_IO_PENDING)
+ 		{

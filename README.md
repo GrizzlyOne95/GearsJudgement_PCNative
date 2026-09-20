@@ -69,5 +69,6 @@ The redistributable source delta and build/test notes for the Steam campaign
 co-op repair are in
 [`patches/gears3-steam-coop`](patches/gears3-steam-coop/README.md). The patch
 restores friend lobbies and invites, routes accepted invites through Gears'
-persistent-party reservation, validates listen-server advertisement, and blocks
-late shared-Spacewar self-kicks before the host is removed.
+persistent-party reservation, synchronizes the session state Gears validates,
+validates listen-server advertisement, and blocks late shared-Spacewar
+self-kicks before the host is removed.
