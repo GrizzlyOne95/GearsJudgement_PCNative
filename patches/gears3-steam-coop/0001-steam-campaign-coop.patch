@@ -1,0 +1,570 @@
+diff --git a/Development/Src/OnlineSubsystemSteamworks/Src/OnlineSubsystemSteamworks.cpp b/Development/Src/OnlineSubsystemSteamworks/Src/OnlineSubsystemSteamworks.cpp
+index f1e0d75..fa34197 100644
+--- a/Development/Src/OnlineSubsystemSteamworks/Src/OnlineSubsystemSteamworks.cpp
++++ b/Development/Src/OnlineSubsystemSteamworks/Src/OnlineSubsystemSteamworks.cpp
+@@ -35,6 +35,7 @@ ISteamUser *GSteamUser = NULL;
+ ISteamFriends *GSteamFriends = NULL;
+ ISteamRemoteStorage *GSteamRemoteStorage = NULL;
+ ISteamUserStats *GSteamUserStats = NULL;
++ISteamMatchmaking *GSteamMatchmaking = NULL;
+ ISteamMatchmakingServers *GSteamMatchmakingServers = NULL;
+ ISteamGameServer *GSteamGameServer = NULL;
+ ISteamMasterServerUpdater *GSteamMasterServerUpdater = NULL;
+@@ -175,6 +176,138 @@ void appSteamworksTerminateGameConnection(DWORD Addr, INT Port)
+ 	}
+ }
+ 
++// Gears' menus expect platform party invites, but this Steam port originally
++// left SendGameInviteToFriend() and JoinFriendGame() as stubs. Keep one
++// friends-only Steam lobby alongside the existing UE3 party session. The lobby
++// carries the real UE3 connect URL and gives Steam a native invite/join object
++// without replacing Gears' own gameplay networking.
++static CSteamID GSteamPartyLobby;
++static CSteamID GPendingSteamLobbyJoin;
++static TArray<CSteamID> GPendingSteamLobbyInvites;
++static UBOOL GSteamLobbyCreatePending = FALSE;
++static UBOOL GShowSteamLobbyInviteUIWhenReady = FALSE;
++static const ANSICHAR* Gears3ConnectLobbyKey = "Gears3Connect";
++
++static UBOOL PublishSteamPartyLobby(UOnlineSubsystemSteamworks* Subsystem)
++{
++	if (GSteamMatchmaking == NULL || !GSteamPartyLobby.IsValid() || Subsystem == NULL)
++	{
++		return FALSE;
++	}
++
++	const FString Location = Subsystem->GetServerLocation();
++	FURL Url(NULL,*Location,TRAVEL_Absolute);
++	UBOOL bIsValid = FALSE;
++	FInternetIpAddr HostAddr;
++	HostAddr.SetIp(*Url.Host,bIsValid);
++	HostAddr.SetPort(Url.Port);
++	if (!bIsValid || Url.Port == 0)
++	{
++		debugf(NAME_Error,TEXT("Steam lobby: refusing invalid connect location '%s'"),*Location);
++		return FALSE;
++	}
++
++	DWORD IpAddr = 0;
++	HostAddr.GetIp(IpAddr);
++	const UBOOL bSetData = GSteamMatchmaking->SetLobbyData(GSteamPartyLobby,Gears3ConnectLobbyKey,TCHAR_TO_UTF8(*Location));
++	GSteamMatchmaking->SetLobbyGameServer(GSteamPartyLobby,(uint32)IpAddr,(uint16)Url.Port,CSteamID());
++	debugf(NAME_DevOnline,TEXT("Steam lobby %s published connect location %s"),*RenderCSteamID(GSteamPartyLobby),*Location);
++	return bSetData;
++}
++
++static UBOOL EnsureSteamPartyLobby(UOnlineSubsystemSteamworks* Subsystem)
++{
++	if (GSteamMatchmaking == NULL)
++	{
++		return FALSE;
++	}
++	if (GSteamPartyLobby.IsValid())
++	{
++		PublishSteamPartyLobby(Subsystem);
++		return TRUE;
++	}
++	if (!GSteamLobbyCreatePending)
++	{
++		INT MaxMembers = 4;
++		if (Subsystem && Subsystem->CachedGameInt && Subsystem->CachedGameInt->GameSettings)
++		{
++			MaxMembers = Max(2,Subsystem->CachedGameInt->GameSettings->NumPublicConnections + Subsystem->CachedGameInt->GameSettings->NumPrivateConnections);
++		}
++		GSteamLobbyCreatePending = TRUE;
++		GSteamMatchmaking->CreateLobby(k_ELobbyTypeFriendsOnly,MaxMembers);
++		debugf(NAME_DevOnline,TEXT("Creating Steam friends lobby for %d players"),MaxMembers);
++	}
++	return TRUE;
++}
++
++static UBOOL BeginSteamLobbyJoin(const CSteamID& Lobby)
++{
++	if (GSteamMatchmaking == NULL || !Lobby.IsValid())
++	{
++		return FALSE;
++	}
++	if (GSteamPartyLobby.IsValid() && GSteamPartyLobby != Lobby)
++	{
++		GSteamMatchmaking->LeaveLobby(GSteamPartyLobby);
++		GSteamPartyLobby = CSteamID();
++	}
++	GPendingSteamLobbyJoin = Lobby;
++	GSteamMatchmaking->JoinLobby(Lobby);
++	debugf(NAME_DevOnline,TEXT("Joining Steam lobby %s"),*RenderCSteamID(Lobby));
++	return TRUE;
++}
++
++static UBOOL DispatchSteamLobbyInvite(UOnlineSubsystemSteamworks* Subsystem,const CSteamID& Lobby)
++{
++	if (GSteamMatchmaking == NULL || Subsystem == NULL || Subsystem->CachedGameInt == NULL)
++	{
++		return FALSE;
++	}
++	const ANSICHAR* RawLocation = GSteamMatchmaking->GetLobbyData(Lobby,Gears3ConnectLobbyKey);
++	const FString Location = UTF8_TO_TCHAR(RawLocation ? RawLocation : "");
++	FURL Url(NULL,*Location,TRAVEL_Absolute);
++	UBOOL bIsValid = FALSE;
++	FInternetIpAddr HostAddr;
++	HostAddr.SetIp(*Url.Host,bIsValid);
++	HostAddr.SetPort(Url.Port);
++	if (!bIsValid || Url.Port == 0)
++	{
++		debugf(NAME_Error,TEXT("Steam lobby %s has invalid connect location '%s'"),*RenderCSteamID(Lobby),*Location);
++		return FALSE;
++	}
++
++	// Feed Steam's lobby address into the online-game interface that Gears already
++	// uses for platform invites. This fires GearPC.OnGameInviteAccepted(), which
++	// reserves a slot through the persistent-party beacon before any client travel.
++	// Direct SetClientTravel() skips that reservation and loses the guest when the
++	// host starts the campaign map.
++	UOnlineGameInterfaceSteamworks* GameInterface = Subsystem->CachedGameInt;
++	GameInterface->SetInviteInfo(*Location);
++	if (GameInterface->InviteGameSearch == NULL || GameInterface->InviteGameSearch->Results.Num() == 0)
++	{
++		debugf(NAME_Error,TEXT("Steam lobby %s could not create invite search data"),*RenderCSteamID(Lobby));
++		return FALSE;
++	}
++
++	FOnlineGameSearchResult& InviteResult = GameInterface->InviteGameSearch->Results(0);
++	const CSteamID LobbyOwner = GSteamMatchmaking->GetLobbyOwner(Lobby);
++	if (InviteResult.GameSettings != NULL && LobbyOwner.IsValid())
++	{
++		InviteResult.GameSettings->OwningPlayerId.Uid = (QWORD)LobbyOwner.ConvertToUint64();
++		if (GSteamFriends != NULL)
++		{
++			InviteResult.GameSettings->OwningPlayerName = UTF8_TO_TCHAR(GSteamFriends->GetFriendPersonaName(LobbyOwner));
++		}
++	}
++
++	OnlineGameInterfaceImpl_eventOnGameInviteAccepted_Parms Parms(EC_EventParm);
++	Parms.InviteResult = InviteResult;
++	debugf(NAME_DevOnline,TEXT("Steam lobby %s dispatching Gears party invite for %s (owner %s)"),
++		*RenderCSteamID(Lobby),*HostAddr.ToString(TRUE),*RenderCSteamID(LobbyOwner));
++	TriggerOnlineDelegates(GameInterface,GameInterface->GameInviteAcceptedDelegates,&Parms);
++	return TRUE;
++}
++
+ void appSteamworksSendUserDisconnect(FUniqueNetId UID)
+ {
+ 	if (GSteamGameServer != NULL && UID.Uid != 0)
+@@ -195,6 +328,9 @@ public:
+ 		, GameOverlayActivatedCallback(this, &SteamCallbackBridge::OnGameOverlayActivated)
+ 		, SteamShutdownCallback(this, &SteamCallbackBridge::OnSteamShutdown)
+ 		, GameServerChangeRequestedCallback(this, &SteamCallbackBridge::OnGameServerChangeRequested)
++		, GameLobbyJoinRequestedCallback(this, &SteamCallbackBridge::OnGameLobbyJoinRequested)
++		, LobbyCreatedCallback(this, &SteamCallbackBridge::OnLobbyCreated)
++		, LobbyEnterCallback(this, &SteamCallbackBridge::OnLobbyEnter)
+ 		, SteamServersConnectedCallback(this, &SteamCallbackBridge::OnSteamServersConnected)
+ 		, SteamServersDisconnectedCallback(this, &SteamCallbackBridge::OnSteamServersDisconnected)
+ 		, ClientGameServerDenyCallback(this, &SteamCallbackBridge::OnClientGameServerDeny)
+@@ -273,6 +409,9 @@ private:
+ 	STEAM_CALLBACK(SteamCallbackBridge, OnGameOverlayActivated, GameOverlayActivated_t, GameOverlayActivatedCallback);
+ 	STEAM_CALLBACK(SteamCallbackBridge, OnSteamShutdown, SteamShutdown_t, SteamShutdownCallback);
+ 	STEAM_CALLBACK(SteamCallbackBridge, OnGameServerChangeRequested, GameServerChangeRequested_t, GameServerChangeRequestedCallback);
++	STEAM_CALLBACK(SteamCallbackBridge, OnGameLobbyJoinRequested, GameLobbyJoinRequested_t, GameLobbyJoinRequestedCallback);
++	STEAM_CALLBACK(SteamCallbackBridge, OnLobbyCreated, LobbyCreated_t, LobbyCreatedCallback);
++	STEAM_CALLBACK(SteamCallbackBridge, OnLobbyEnter, LobbyEnter_t, LobbyEnterCallback);
+ 	STEAM_CALLBACK(SteamCallbackBridge, OnSteamServersConnected, SteamServersConnected_t, SteamServersConnectedCallback);
+ 	STEAM_CALLBACK(SteamCallbackBridge, OnSteamServersDisconnected, SteamServersDisconnected_t, SteamServersDisconnectedCallback);
+ 	STEAM_CALLBACK(SteamCallbackBridge, OnClientGameServerDeny, ClientGameServerDeny_t, ClientGameServerDenyCallback);
+@@ -372,8 +511,11 @@ void SteamCallbackBridge::OnClientGameServerDeny(ClientGameServerDeny_t *Callbac
+ 		if ( (NetDriver->ServerConnection->GetAddrAsInt() == ((INT) CallbackData->m_unGameServerIP)) &&
+ 		     (NetDriver->ServerConnection->GetAddrPort() == ((INT) CallbackData->m_usGameServerPort)) )
+ 		{
+-			debugf(NAME_DevOnline, TEXT("OnClientGameServerDeny telling us to disconnect (secure=%d, reason=%d)"), (INT) CallbackData->m_bSecure, (INT) CallbackData->m_uReason);
+-			GEngine->Exec(TEXT("DISCONNECT"));
++			// Under the shared Spacewar (480) identity the server's auth ticket for us
++			// expires mid-match and Steam denies a client that is otherwise healthy.
++			// Log it but stay connected; this mirrors the NOPed Exec in the shipped
++			// GearGame-Campaign-Steam.exe coop-auth patch.
++			debugf(NAME_DevOnline, TEXT("OnClientGameServerDeny telling us to disconnect (secure=%d, reason=%d) - ignoring"), (INT) CallbackData->m_bSecure, (INT) CallbackData->m_uReason);
+ 			return;
+ 		}
+ 	}
+@@ -399,6 +541,62 @@ void SteamCallbackBridge::OnGameServerChangeRequested(GameServerChangeRequested_
+ 	GEngine->SetClientTravel(*Url, TRAVEL_Absolute);
+ }
+ 
++void SteamCallbackBridge::OnGameLobbyJoinRequested(GameLobbyJoinRequested_t *CallbackData)
++{
++	debugf(NAME_DevOnline,TEXT("Steam callback: OnGameLobbyJoinRequested lobby=%s"),*RenderCSteamID(CallbackData->m_steamIDLobby));
++	BeginSteamLobbyJoin(CallbackData->m_steamIDLobby);
++}
++
++void SteamCallbackBridge::OnLobbyCreated(LobbyCreated_t *CallbackData)
++{
++	GSteamLobbyCreatePending = FALSE;
++	if (CallbackData->m_eResult != k_EResultOK)
++	{
++		debugf(NAME_Error,TEXT("Steam lobby creation failed: %d"),(INT)CallbackData->m_eResult);
++		GPendingSteamLobbyInvites.Empty();
++		GShowSteamLobbyInviteUIWhenReady = FALSE;
++		return;
++	}
++
++	GSteamPartyLobby = CSteamID(CallbackData->m_ulSteamIDLobby);
++	PublishSteamPartyLobby(Subsystem);
++	for (INT Index = 0; Index < GPendingSteamLobbyInvites.Num(); Index++)
++	{
++		GSteamMatchmaking->InviteUserToLobby(GSteamPartyLobby,GPendingSteamLobbyInvites(Index));
++	}
++	GPendingSteamLobbyInvites.Empty();
++	if (GShowSteamLobbyInviteUIWhenReady)
++	{
++		GSteamFriends->ActivateGameOverlayInviteDialog(GSteamPartyLobby);
++		GShowSteamLobbyInviteUIWhenReady = FALSE;
++	}
++}
++
++void SteamCallbackBridge::OnLobbyEnter(LobbyEnter_t *CallbackData)
++{
++	const CSteamID Lobby(CallbackData->m_ulSteamIDLobby);
++	debugf(NAME_DevOnline,TEXT("Steam callback: OnLobbyEnter lobby=%s result=%u"),*RenderCSteamID(Lobby),CallbackData->m_EChatRoomEnterResponse);
++	if (CallbackData->m_EChatRoomEnterResponse != k_EChatRoomEnterResponseSuccess)
++	{
++		if (GPendingSteamLobbyJoin == Lobby)
++		{
++			GPendingSteamLobbyJoin = CSteamID();
++		}
++		return;
++	}
++
++	GSteamPartyLobby = Lobby;
++	if (GPendingSteamLobbyJoin == Lobby)
++	{
++		GPendingSteamLobbyJoin = CSteamID();
++		DispatchSteamLobbyInvite(Subsystem,Lobby);
++	}
++	else
++	{
++		PublishSteamPartyLobby(Subsystem);
++	}
++}
++
+ 
+ static inline const TCHAR *DenyReasonString(const EDenyReason Reason)
+ {
+@@ -478,10 +676,11 @@ void UOnlineSubsystemSteamworks::OnGSClientDeny(GSClientDeny_t *CallbackData)
+ 
+ 	if ((GIsClient) && (UniqueId.Uid == LoggedInPlayerId.Uid))
+ 	{
+-		// uhoh! 
+-		// No NAME_DevOnline on this, always want it in the server logfile for the admins.
+-		debugf(TEXT("We're a listen server and we failed our own auth!"));
+-		GEngine->Exec(TEXT("DISCONNECT"));
++		// Spacewar's shared development identity can reject a listen server's
++		// synthetic self-auth request. Disconnecting here tears down a healthy
++		// local co-op host after roughly two minutes; remote clients are still
++		// handled by the normal denial path below.
++		debugf(TEXT("Ignoring failed self-auth for this listen server."));
+ 		return;
+ 	}
+ 
+@@ -533,6 +732,15 @@ void UOnlineSubsystemSteamworks::OnGSClientKick(GSClientKick_t *CallbackData)
+ 	FUniqueNetId UniqueId;
+ 	UniqueId.Uid = (QWORD) CallbackData->m_SteamID.ConvertToUint64();
+ 
++	if ((GIsClient) && (UniqueId.Uid == LoggedInPlayerId.Uid))
++	{
++		// Rejecting the listen host here must happen before ForceKickPlayer. The
++		// Spacewar identity can receive a late self-kick even while LAN co-op is
++		// otherwise healthy.
++		debugf(TEXT("Ignoring Steam self-kick for this listen server."));
++		return;
++	}
++
+ 	APlayerController *Controller = FindPlayerControllerForUniqueId(UniqueId);
+ 	if (!Controller)
+ 	{
+@@ -542,6 +750,9 @@ void UOnlineSubsystemSteamworks::OnGSClientKick(GSClientKick_t *CallbackData)
+ 			debugf(NAME_DevOnline, TEXT("No player matching id %s, not kicking!"), *RenderCSteamID(CallbackData->m_SteamID));
+ 			return;
+ 		}
++		// HandleOnlineSubsystemAuth handled the pre-login connection directly;
++		// there is no PlayerController to pass to ForceKickPlayer.
++		return;
+ 	}
+ 
+ 	// No NAME_DevOnline on this, always want it in the server logfile for the admins.
+@@ -549,15 +760,6 @@ void UOnlineSubsystemSteamworks::OnGSClientKick(GSClientKick_t *CallbackData)
+ 	debugf(TEXT("Kicking player at Steam's request. id: %s ('%s'), reason: %s"), *RenderCSteamID(CallbackData->m_SteamID), *Controller->PlayerReplicationInfo->PlayerName, *KickReason);
+ 	GameInfo->eventForceKickPlayer(Controller, KickReason);
+ 
+-	if ((GIsClient) && (UniqueId.Uid == LoggedInPlayerId.Uid))
+-	{
+-		// uhoh! 
+-		// No NAME_DevOnline on this, always want it in the server logfile for the admins.
+-		debugf(TEXT("We're a listen server and we were kicked from our own game!"));
+-		GEngine->Exec(TEXT("DISCONNECT"));
+-		return;
+-	}
+-
+ 	// Refresh the game settings.
+ 	if (CachedGameInt)
+ 	{
+@@ -639,6 +841,7 @@ void UOnlineSubsystemSteamworks::OnGSPolicyResponse(GSPolicyResponse_t *Callback
+ 	{
+ 		CachedGameInt->OnGSPolicyResponse(CallbackData->m_bSecure != 0);
+ 	}
++	EnsureSteamPartyLobby(this);
+ };
+ 
+ void UOnlineSubsystemSteamworks::OnSteamServersConnected(SteamServersConnected_t *CallbackData)
+@@ -1030,6 +1233,7 @@ UBOOL UOnlineSubsystemSteamworks::InitSteamworks()
+ 		GET_STEAMWORKS_INTERFACE(SteamFriends);
+ 		GET_STEAMWORKS_INTERFACE(SteamRemoteStorage);
+ 		GET_STEAMWORKS_INTERFACE(SteamUserStats);
++		GET_STEAMWORKS_INTERFACE(SteamMatchmaking);
+ 		GET_STEAMWORKS_INTERFACE(SteamMatchmakingServers);
+ 		GET_STEAMWORKS_INTERFACE(SteamApps);
+ 
+@@ -1139,6 +1343,123 @@ void UOnlineSubsystemSteamworks::TickVoice(FLOAT DeltaTime)
+  *
+  * @param DeltaTime the amount of time that has passed since the last tick
+  */
++// Gears' PC port never tells Steam which server the local player is on.
++// AdvertiseGame() does not exist in this 2011 SDK (SteamUser013); the equivalent is
++// InitiateGameConnection(), and the engine only drives that from the NMT_AuthServer
++// control message - which a listen host never receives, because it has no
++// ServerConnection. So for a host, Steam is never told anything, GetFriendGamePlayed()
++// returns m_unGameIP=0/m_usGamePort=0, and every friend running this build shows as
++// 0.0.0.0:0 on the MANAGE / INVITE screen. That one gap also disables Steam's own
++// "Join game" and leaves JoinFriendGame() with no address to travel to.
++//
++// Register the listen host's own address once a second so the already-complete
++// SteamCallbackBridge::OnGameServerChangeRequested() path has something to fire on.
++// Remote clients are left alone: NMT_AuthServer already registers them correctly.
++static DWORD GSteamAdvertisedIp = 0;
++static INT GSteamAdvertisedPort = 0;
++static QWORD GSteamAdvertisedServerId = 0;
++static FLOAT GSteamAdvertiseCountdown = 0.f;
++
++static void TickSteamAdvertiseListenHost(FLOAT DeltaTime)
++{
++	// Isolation switch: -NOSTEAMADVERTISE disables this entirely, so the rest of
++	// the build can be exercised without it.
++	static UBOOL bAdvertiseDisabled = ParseParam(appCmdLine(),TEXT("NOSTEAMADVERTISE"));
++	if (bAdvertiseDisabled)
++	{
++		return;
++	}
++
++	if (!GSteamworksInitialized || GSteamUser == NULL || GSocketSubsystem == NULL)
++	{
++		return;
++	}
++
++	GSteamAdvertiseCountdown -= DeltaTime;
++	if (GSteamAdvertiseCountdown > 0.f)
++	{
++		return;
++	}
++	GSteamAdvertiseCountdown = 1.0f;
++
++	DWORD Ip = 0;
++	INT Port = 0;
++
++	UNetDriver* NetDriver = (GWorld != NULL) ? GWorld->GetNetDriver() : NULL;
++	AWorldInfo* WorldInfo = (GWorld != NULL) ? GWorld->GetWorldInfo() : NULL;
++	if (NetDriver != NULL && NetDriver->ServerConnection == NULL && WorldInfo != NULL &&
++		WorldInfo->NetMode == NM_ListenServer)
++	{
++		// GetLocalHostAddr honours -MULTIHOME, which is what keeps this off a
++		// Hyper-V/WSL virtual switch on a machine that has one.
++		FInternetIpAddr LocalAddr;
++		GSocketSubsystem->GetLocalHostAddr(*GLog,LocalAddr);
++		LocalAddr.GetIp(Ip);
++		Port = GWorld->URL.Port != 0 ? GWorld->URL.Port : FURL::DefaultPort;
++	}
++
++	CSteamID ServerSteamID;
++	if (Ip != 0 && Port != 0)
++	{
++		// SteamGameServer_GetSteamID initially returns k_steamIDNotInitYetGS
++		// ([0:1]). Wait for the server login to complete instead of caching a
++		// presence update that Steam could not authenticate.
++		if (GSteamGameServer == NULL || !GSteamGameServer->BLoggedOn())
++		{
++			return;
++		}
++		ServerSteamID = GSteamGameServer->GetSteamID();
++		if (!ServerSteamID.IsValid())
++		{
++			return;
++		}
++	}
++
++	const QWORD ServerSteamIDValue = (QWORD)ServerSteamID.ConvertToUint64();
++	if (Ip == GSteamAdvertisedIp && Port == GSteamAdvertisedPort && ServerSteamIDValue == GSteamAdvertisedServerId)
++	{
++		return;
++	}
++
++	if (GSteamAdvertisedIp != 0 && GSteamAdvertisedPort != 0)
++	{
++		GSteamUser->TerminateGameConnection(GSteamAdvertisedIp,(uint16)GSteamAdvertisedPort);
++	}
++
++	GSteamAdvertisedIp = 0;
++	GSteamAdvertisedPort = 0;
++	GSteamAdvertisedServerId = 0;
++
++	if (Ip != 0 && Port != 0)
++	{
++		// The returned auth blob is deliberately discarded: a listen host authenticates
++		// itself through the game server interface already. The call is made for its
++		// side effect - it is what publishes the address to the Steam friends list.
++		BYTE AuthBlob[2048];
++		const INT AuthBlobSize = GSteamUser->InitiateGameConnection(AuthBlob,ARRAY_COUNT(AuthBlob),ServerSteamID,
++			Ip,(uint16)Port,appSteamGameServer_BSecure() != 0);
++		if (AuthBlobSize <= 0)
++		{
++			debugf(NAME_Error,TEXT("Failed to advertise listen host to Steam; will retry (server id %s)"),
++				*RenderCSteamID(ServerSteamID));
++			return;
++		}
++
++		GSteamAdvertisedIp = Ip;
++		GSteamAdvertisedPort = Port;
++		GSteamAdvertisedServerId = ServerSteamIDValue;
++
++		FInternetIpAddr LogAddr;
++		LogAddr.SetIp(Ip);
++		LogAddr.SetPort(Port);
++		debugf(NAME_DevOnline,TEXT("Advertised listen host %s to Steam (server id %s, auth bytes %d)"),
++			*LogAddr.ToString(TRUE),*RenderCSteamID(ServerSteamID),AuthBlobSize);
++	}
++	else
++	{
++		debugf(NAME_DevOnline,TEXT("Cleared advertised game server with Steam"));
++	}
++}
+ void UOnlineSubsystemSteamworks::Tick(FLOAT DeltaTime)
+ {
+ 	// Check for there not being a logged in user, since we require at least a default user
+@@ -1152,6 +1473,8 @@ void UOnlineSubsystemSteamworks::Tick(FLOAT DeltaTime)
+ 	// Let voice do any processing
+ 	TickVoice(DeltaTime);
+ 	TickConnectionStatusChange(DeltaTime);
++	// Keep the Steam friends list pointed at our listen server (see above).
++	TickSteamAdvertiseListenHost(DeltaTime);
+ 	// Tick the Steamworks Core (may run callbacks!)
+ 	TickSteamworksTasks(DeltaTime);
+ }
+@@ -1256,7 +1579,9 @@ FString UOnlineSubsystemSteamworks::GetServerLocation(void) const
+ 		if (OutAddr == 0)
+ 		{
+ 			// Get the real IP address of the machine
++			const INT HostPort = Addr.GetPort();
+ 			GSocketSubsystem->GetLocalHostAddr(*GLog,Addr);
++			Addr.SetPort(HostPort);
+ 		}
+ 		// Format the string using the address and our connection count
+ 		FString Location = FString::Printf(TEXT("%s://%s/?MaxPub=%d?MaxPri=%d"),
+@@ -2972,8 +3297,20 @@ UBOOL UOnlineSubsystemSteamworks::SendMessageToFriend(BYTE LocalUserNum,FUniqueN
+  */
+ UBOOL UOnlineSubsystemSteamworks::SendGameInviteToFriend(BYTE LocalUserNum,FUniqueNetId Friend,const FString&)
+ {
+-	// This is handled by Steam.
+-	return FALSE;
++	if (!GSteamworksInitialized || GSteamMatchmaking == NULL || LocalUserNum != LoggedInPlayerNum || Friend.Uid == 0)
++	{
++		return FALSE;
++	}
++	const CSteamID Invitee((uint64)Friend.Uid);
++	if (GSteamPartyLobby.IsValid())
++	{
++		PublishSteamPartyLobby(this);
++		const UBOOL bSent = GSteamMatchmaking->InviteUserToLobby(GSteamPartyLobby,Invitee);
++		debugf(NAME_DevOnline,TEXT("Steam lobby invite to %s: %s"),*RenderCSteamID(Invitee),BoolToString(bSent != FALSE));
++		return bSent;
++	}
++	GPendingSteamLobbyInvites.AddUniqueItem(Invitee);
++	return EnsureSteamPartyLobby(this);
+ }
+ 
+ /**
+@@ -2987,8 +3324,12 @@ UBOOL UOnlineSubsystemSteamworks::SendGameInviteToFriend(BYTE LocalUserNum,FUniq
+  */
+ UBOOL UOnlineSubsystemSteamworks::SendGameInviteToFriends(BYTE LocalUserNum,const TArray<FUniqueNetId>& Friends,const FString& Text)
+ {
+-	// This is handled by Steam.
+-	return FALSE;
++	UBOOL bSentAny = FALSE;
++	for (INT Index = 0; Index < Friends.Num(); Index++)
++	{
++		bSentAny |= SendGameInviteToFriend(LocalUserNum,Friends(Index),Text);
++	}
++	return bSentAny;
+ }
+ 
+ /**
+@@ -3001,7 +3342,30 @@ UBOOL UOnlineSubsystemSteamworks::SendGameInviteToFriends(BYTE LocalUserNum,cons
+  */
+ UBOOL UOnlineSubsystemSteamworks::JoinFriendGame(BYTE LocalUserNum,FUniqueNetId Friend)
+ {
+-	// Steam handles this.
++	if (!GSteamworksInitialized || GSteamFriends == NULL || LocalUserNum != LoggedInPlayerNum || Friend.Uid == 0)
++	{
++		return FALSE;
++	}
++	FriendGameInfo_t FriendGameInfo;
++	if (!GSteamFriends->GetFriendGamePlayed(CSteamID((uint64)Friend.Uid),&FriendGameInfo) || FriendGameInfo.m_gameID.AppID() != GSteamAppID)
++	{
++		return FALSE;
++	}
++	if (FriendGameInfo.m_steamIDLobby.IsValid())
++	{
++		return BeginSteamLobbyJoin(FriendGameInfo.m_steamIDLobby);
++	}
++	if (FriendGameInfo.m_unGameIP != 0 && FriendGameInfo.m_usGamePort != 0)
++	{
++		FInternetIpAddr HostAddr;
++		HostAddr.SetIp((DWORD)FriendGameInfo.m_unGameIP);
++		HostAddr.SetPort((INT)FriendGameInfo.m_usGamePort);
++		const FString TravelUrl = FString::Printf(TEXT("%s://%s"),*FURL::DefaultProtocol,*HostAddr.ToString(TRUE));
++		debugf(NAME_DevOnline,TEXT("JoinFriendGame travelling to %s"),*TravelUrl);
++		GEngine->SetClientTravel(*TravelUrl,TRAVEL_Absolute);
++		return TRUE;
++	}
++	debugf(NAME_DevOnline,TEXT("JoinFriendGame found no lobby or usable address for %s"),*RenderCSteamID(CSteamID((uint64)Friend.Uid)));
+ 	return FALSE;
+ }
+ 
+@@ -3653,21 +4017,23 @@ UBOOL UOnlineSubsystemSteamworks::ShowFriendsUI(BYTE LocalUserNum)
+  */
+ UBOOL UOnlineSubsystemSteamworks::ShowFriendsInviteUI(BYTE LocalUserNum,FUniqueNetId UniqueId)
+ {
+-	DWORD Result = E_FAIL;
+-	// Validate the user index passed in
+-	if (GSteamworksInitialized && (LocalUserNum == LoggedInPlayerNum))
++	if (!GSteamworksInitialized || GSteamFriends == NULL || GSteamMatchmaking == NULL || LocalUserNum != LoggedInPlayerNum)
+ 	{
+-		// Show the friends UI for the specified controller num
+-		const CSteamID SteamPlayerID((uint64) UniqueId.Uid);
+-		GSteamFriends->ActivateGameOverlayToUser("steamid", SteamPlayerID);  // !!! FIXME: not exactly right.
+-		Result = ERROR_SUCCESS;
++		debugf(NAME_DevOnline,TEXT("Invalid player index (%d) specified to ShowFriendsInviteUI()"),(DWORD)LocalUserNum);
++		return FALSE;
+ 	}
+-	else
++	if (UniqueId.Uid != 0)
+ 	{
+-		debugf(NAME_DevOnline,TEXT("Invalid player index (%d) specified to ShowFriendsInviteUI()"),
+-			(DWORD)LocalUserNum);
++		return SendGameInviteToFriend(LocalUserNum,UniqueId,TEXT(""));
+ 	}
+-	return Result == ERROR_SUCCESS;
++	if (GSteamPartyLobby.IsValid())
++	{
++		PublishSteamPartyLobby(this);
++		GSteamFriends->ActivateGameOverlayInviteDialog(GSteamPartyLobby);
++		return TRUE;
++	}
++	GShowSteamLobbyInviteUIWhenReady = TRUE;
++	return EnsureSteamPartyLobby(this);
+ }
+ 
+ /**
