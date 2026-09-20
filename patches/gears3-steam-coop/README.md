@@ -8,6 +8,7 @@ redistributed here.
 ## Baseline and target
 
 - Target files:
+  - `Development/Src/GearGame/Src/GearPersistentPartyBeacon.cpp`
   - `Development/Src/OnlineSubsystemSteamworks/Src/OnlineSubsystemSteamworks.cpp`
   - `Development/Src/OnlineSubsystemSteamworks/Src/UOnlineGameInterfaceSteamworks.cpp`
 - Baseline: the frozen pre-co-op copy at
@@ -20,6 +21,10 @@ redistributed here.
   `8BCCC24910043E95C3F9C81856991D2F9BD80E5954435EB8B1D78B6C379D9E13`
 - Patched game-interface SHA-256:
   `2D04923A15C085BF7E7962F0BF89E8219E204553569B84BF9E97BDFDB7DC545A`
+- Persistent-party beacon baseline SHA-256:
+  `2F907CA0DA8414C268662984D15BB4763D0F0C4836C88874E9F870AD63C481E4`
+- Patched persistent-party beacon SHA-256:
+  `183B7D314C5B993A0BBC51FE1A7C18A7F942C66C0D6AB6B1BD479CA125A785DD`
 
 The January 2011 alpha has a related Steamworks implementation, but it is 29
 lines different from the later local baseline. The patch therefore targets the
@@ -51,6 +56,10 @@ git apply <repo>\patches\gears3-steam-coop\0001-steam-campaign-coop.patch
   during create, update, join, start, and end operations. Without this, Gears
   reads `OGS_NoSession` and rejects a valid invite before requesting the party
   reservation.
+- Uses the subsystem's named-session list before attempting game-session JIP.
+  The PC interface otherwise returns its sole `Party` settings object for a
+  `Game` lookup, then rejects the accepted party reservation when no separate
+  game session can be serialized.
 
 Together these changes close the findings that caused `0.0.0.0`, invisible
 invites, rejected joins, and guests disappearing when the host started a
@@ -68,14 +77,14 @@ $env:UE3_WINDOWS_SDK_DIR = '<Windows SDK v6.0A>'
 
 Development\Intermediate\UnrealBuildTool\Release\UnrealBuildTool.exe `
   GearGame Win32 Release -NOEDITOR `
-  -OUTPUT '<private output path>\GearGame-Campaign-Steam-coopfix-v3.exe'
+  -OUTPUT '<private output path>\GearGame-Campaign-Steam-coopfix-v4.exe'
 ```
 
 Verified private executable:
 
-- Size: `31,738,368` bytes
+- Size: `31,739,392` bytes
 - SHA-256:
-  `84BC368DD06765FACFF8C41DAAD7A67EE791145051290A808E80E437286E2B8E`
+  `1F3E9ABCE8CE363F6EF2BF714268B4633742868283D9473F960DE5D8AF953680`
 
 The executable is a compiled derivative and is intentionally not committed.
 
@@ -108,8 +117,13 @@ open <host LAN address>:1000
 - A v2 two-PC run verified valid Steam advertisement, invite delivery, lobby
   entry, and dispatch of the correct `192.168.0.44:1000` invite result. It then
   exposed the stale `OnlineGameSettings.GameState` value fixed in v3.
+- A v3 two-PC run reached the host's persistent-party beacon and added the
+  guest reservation. It then exposed the PC single-session alias: the party
+  settings were mistaken for an active `Game`, producing
+  `GearPPJIP_GameReservationFailed`. v4 accepts the party reservation when the
+  subsystem has no real named `Game` session.
 - A two-PC campaign transition and four-minute connection test remains required;
-  v3 has been deployed identically to both PCs and awaits the retest.
+  v4 has been deployed identically to both PCs and awaits the retest.
 
 Expected evidence in `GearGame/Logs/Launch.log`:
 
@@ -117,6 +131,8 @@ Expected evidence in `GearGame/Logs/Launch.log`:
 Advertised listen host <IP>:1000 to Steam (server id <valid>, auth bytes <N>)
 Steam lobby <id> dispatching Gears party invite for <IP>:1000
 Created party beacon (PersistentPartyHost)
+found no named Game session; accepting party reservation update
+Party reservation responce received ReservationResult=PRR_ReservationAccepted
 ```
 
 `server id [0:1]`, an advertisement failure that never retries, a direct lobby
