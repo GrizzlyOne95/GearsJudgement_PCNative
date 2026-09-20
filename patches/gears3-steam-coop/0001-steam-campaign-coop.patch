@@ -1,3 +1,56 @@
+diff --git a/Development/Src/GearGame/Src/GearPersistentPartyBeacon.cpp b/Development/Src/GearGame/Src/GearPersistentPartyBeacon.cpp
+index 236d40b..5e72ae7 100644
+--- a/Development/Src/GearGame/Src/GearPersistentPartyBeacon.cpp
++++ b/Development/Src/GearGame/Src/GearPersistentPartyBeacon.cpp
+@@ -186,8 +186,23 @@ void UGearPersistentPartyBeaconHost::ProcessReservationRequest(FNboSerializeFrom
+ 				// Update the reservation count before sending the response
+ 				NumConsumedReservations += PartySize;
+ 
+-				// Check to see if there is an active game session that should be joined first
+-				eventHandleGameSessionJIP(ClientConn);
++				// The PC game interface exposes its single Party settings object for every
++				// session name.  Use the subsystem's named-session list as the authoritative
++				// test before asking script to inspect a separate in-progress Game session.
++				// Otherwise a main-menu party invite is misclassified as game JIP and the
++				// client receives GearPPJIP_GameReservationFailed.
++				UOnlineSubsystemCommonImpl* OnlineSub = Cast<UOnlineSubsystemCommonImpl>(UGameEngine::GetOnlineSubsystem());
++				if (OnlineSub == NULL || OnlineSub->GetNamedSession(FName(TEXT("Game"))) == NULL)
++				{
++					debugf(NAME_DevBeacon,
++						TEXT("Beacon (%s) found no named Game session; accepting party reservation"),
++						*BeaconName.ToString());
++					SendReservationResponse(PRR_ReservationAccepted,ClientConn.Socket);
++				}
++				else
++				{
++					eventHandleGameSessionJIP(ClientConn);
++				}
+ 				// Tell any UI and/or clients that there has been a change in the reservation state
+ 				SendReservationUpdates();
+ 				// Tell the owner that we've received a reservation so the UI can be updated
+@@ -329,8 +344,20 @@ void UGearPersistentPartyBeaconHost::ProcessReservationUpdateRequest(FNboSeriali
+ 				// Keep track of newly added players
+ 				NewPlayerAdded(PlayerRes);
+ 			}
+-			// Check to see if there is an active game session that should be joined first
+-			eventHandleGameSessionJIP(ClientConn);
++			// See the new-reservation path above.  The PC interface has one settings
++			// object, so GetGameSettings('Game') alone cannot prove a Game session exists.
++			UOnlineSubsystemCommonImpl* OnlineSub = Cast<UOnlineSubsystemCommonImpl>(UGameEngine::GetOnlineSubsystem());
++			if (OnlineSub == NULL || OnlineSub->GetNamedSession(FName(TEXT("Game"))) == NULL)
++			{
++				debugf(NAME_DevBeacon,
++					TEXT("Beacon (%s) found no named Game session; accepting party reservation update"),
++					*BeaconName.ToString());
++				SendReservationResponse(PRR_ReservationAccepted,ClientConn.Socket);
++			}
++			else
++			{
++				eventHandleGameSessionJIP(ClientConn);
++			}
+ 			// Tell any UI and/or clients that there has been a change in the reservation state
+ 			SendReservationUpdates();
+ 			// Tell the owner that we've received a reservation so the UI can be updated
 diff --git a/Development/Src/OnlineSubsystemSteamworks/Src/OnlineSubsystemSteamworks.cpp b/Development/Src/OnlineSubsystemSteamworks/Src/OnlineSubsystemSteamworks.cpp
 index f1e0d75..fa34197 100644
 --- a/Development/Src/OnlineSubsystemSteamworks/Src/OnlineSubsystemSteamworks.cpp
