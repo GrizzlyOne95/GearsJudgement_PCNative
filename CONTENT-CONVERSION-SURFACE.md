@@ -937,3 +937,29 @@ campaign source. Tests use `-NOHOMEDIR` and the isolated runtime only.
 Next: `SP_E2_01` assesses at 3,039/4,919 converted, 1,880 unmodelled geometry/lighting/component
 tails; its partial output is not staged. See `SKELETAL-MESH-CHECKPOINT.md` for retained artifacts,
 private engine patch 0009, exact hashes, regression commands and the next work boundary.
+
+## Session XX: populated geometry, lighting and retail streaming (2026-09-30)
+
+`SP_E2_01` now converts **4,919/4,919**, SP_E2_02 **3,054/3,054**, SP_E2_W **61/61**.
+`SP_E2_P` remains **1,433/1,433**. All four have zero partial or unsupported exports.
+Bounded geometry serializers model mixed-width BSP/static/fractured meshes, instance LODs,
+lightmaps, decals, convex-cache containers, collection matrices and populated Level data.
+Native Level colors swap as DWORDs. Dominant light shadows serialize before Super/UObject,
+so the converter walks that WORD array before reading the component prologue and tags.
+
+The isolated engine explicitly whitelists retail streaming names under v845/loader opt-in.
+Populated BSP exposed console FVert 16B versus PC FVert 24B: BulkSerialize consumed correct
+file bytes but put records at the wrong memory stride. Per-record expansion clears the
+BuildRenderData assertion. Private incremental source patch 0010 follows mesh patch 0009.
+
+Native loading advances through SP_E2_01, SP_E2_02 and SP_E2_W: **8,571 exact-size loads**,
+zero size mismatches, Baird possession and world ticks. Next failure is missing SP_E2_01_S.
+PkgInfo/thin-map regressions pass; 50 unit tests pass, with populated archive truncations
+and rollback checks. Independent package manifests, BSP topology, FVert counts and all loaded
+export offsets/sizes match. Skeletal packed-position telemetry still agrees with the source.
+
+SP_E2_01_S: 560 exports, 438 complete, 116 partial, six native tails unmodelled. CoverSlot
+arrays, ActorReference/RouteList, four NavigationMeshBase tails and two Pylon tails remain.
+Partial assessment stays in scratch and is not staged. Headless tests also report missing
+shadow/sky texture mip bulk data; visible rendering/codecs/physics/gameplay remain unproven.
+See `STREAMING-GEOMETRY-CHECKPOINT.md` for exact artifacts, hashes and reproduction commands.

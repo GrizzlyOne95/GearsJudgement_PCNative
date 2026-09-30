@@ -57,8 +57,21 @@ def validate(runtime_log=None):
     converter.payloads(exports, names, lambda index: imports[-index - 1] if index < 0 else ("Class" if index == 0 else "?"))
     assert converter.stats["converted"] == 1433
     assert not converter.unsupported
-    assert converter.out == output, "stored artifact differs from current converter"
     manifest = json.loads(MANIFEST.read_text())
+    # Preserve the immutable mesh checkpoint. The next geometry checkpoint fixes
+    # native Level FColor DWORDs; that is the only allowed historical difference.
+    level_tails = []
+    for entry in manifest["exports"]:
+        if entry["class_name"] == "Level":
+            start, size = entry["serial_offset"], entry["serial_size"]
+            tail = Converter(source).tags(names, start + 4, start + size)
+            assert tail is not None
+            level_tails.append((tail, start + size))
+    position = 0
+    for start, end in sorted(level_tails):
+        assert converter.out[position:start] == output[position:start], "historical difference outside Level tail"
+        position = end
+    assert converter.out[position:] == output[position:], "historical difference outside Level tail"
     validation = manifest["layout_validation"]
     assert manifest["byte_order"] == "little" and manifest["package_version"] == 845
     assert validation["invalid_name_references"] == 0
@@ -92,6 +105,7 @@ def validate(runtime_log=None):
     report = {"source_sha256": hashlib.sha256(source).hexdigest(),
               "output_sha256": hashlib.sha256(output).hexdigest(), "bytes": len(output),
               "converted_exports": 1433, "unsupported": 0, "changed_only_mesh_tails": True,
+              "current_converter_matches_checkpoint_outside_level_tails": True,
               "meshes": rows}
     if runtime_log:
         log = Path(runtime_log).read_text(errors="replace")
