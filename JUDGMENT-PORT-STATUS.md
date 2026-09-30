@@ -1,5 +1,34 @@
 # Judgment native-port - build-tree status
 
+## Session XXVII (2026-09-30): original squad membership verified
+
+Read-only ws20 reflection at the first objective confirms all three companion
+controllers (Carmine, Barrick, Gus) have live distinct pawns/PRIs, share
+GearTeamInfo_0 and GearSquad_0, and occupy member indices 1/2/3 in its four-entry
+array. Their leader is the actual local player GearPC_AID_0. The same membership
+is present with the accessor experiment disabled. Scripted formation already
+works; the original early SetSquadName leader-comparison warning is retained.
+
+Diagnostic GearGame-JudgmentLoader-ws20-squad-trace.exe: 59,436,032 bytes,
+SHA-256 AEFAEE9B3B76BEEBEE17AA48225BE87B348E7A2EE320F9A9B76D9111DA07D3D3.
+Private patch 0020-ws-squad-state-trace.patch: 4,694 bytes, SHA-256
+d88347d43171cb821fba8e3e0365faab3a54735853c3ed2789735b62f0a76f16.
+Its exact-byte replay requires git -c core.autocrlf=false apply because this
+file already mixes line endings. Before/after replay is verified.
+
+-JUDGAISQUADTRACE snapshots once using bounded loaded-property reflection.
+No game state is changed. The 100-second NullRHI accessor test and 75-second
+baseline control both pass original startup/objective/membership validation:
+11,374 exact loads, zero framing mismatches/fatal errors, and 15/10 paired tick
+reports (last 96.62/71.31 seconds). 145 unit tests pass, including seven new
+membership proof cases. Reports do not claim the player's array entry,
+movement or encounters; native subsystem Init/Tick, director FSM, queries,
+goal selection, checkpoint restore and lighting remain outstanding.
+
+The harness still defaults to ws18; diagnostic source and binaries remain in
+this separate copy. See judgment-native/AI-NATIVE-CHECKPOINT.md for evidence.
+Protected Gears 3: 20,284 files, zero changes.
+
 ## Session XXVI (2026-09-30): guarded AI singleton/accessor experiment
 
 All work stays in this separate source/game copy. The new PDB reader validates
