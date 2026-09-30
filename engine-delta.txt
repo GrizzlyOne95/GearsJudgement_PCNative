@@ -1,0 +1,141 @@
+owners (Class+ScriptStruct): judgment=1719 gears3=1675
+Judgment-only owners: 44
+shared owners with DIFFERING member layout: 45 of 1675   (35 classes, 10 structs)
+
+=== layout-differing shared owners (these break native object construction) ===
+  [Class] AmbientSoundSimple  (gears3 3 -> judgment 4 props)
+      + ['Enveloper']
+  [ScriptStruct] AudioClassInfo  (gears3 4 -> judgment 5 props)
+      + ['SizeResidentXbox']
+  [Class] AudioComponent  (gears3 75 -> judgment 80 props)
+      + ['MatineePanning', 'OmniRadius', 'CurrentStartOffset', 'CurrentFrontBackPanning', 'CurrentStereoPanning']
+  [Class] AudioDevice  (gears3 47 -> judgment 51 props)
+      + ['TimerHandler', 'AccumulatedSoundMode', 'EnabledSoundModes', 'SoundClassToStatIdMapping']
+  [ScriptStruct] AudioEQEffect  (gears3 8 -> judgment 11 props)
+      + ['FadeOut', 'FadeIn', 'bEnabled']
+  [ScriptStruct] CheckpointRecord  (gears3 30 -> judgment 34 props)
+      + ['CurrentChainPath', 'SwitchSemaphoreCopy', 'CurrentNode', 'bWasTriggered']
+  [Class] DOFAndBloomEffect  (gears3 10 -> judgment 21 props)
+      + ['BloomDirtMaskTexture', 'BloomDirtMaskColor', 'BloomDirtMaskIntensity', 'BloomLayer4Weight', 'BloomLayer3Weight', 'BloomLayer2Weight', 'BloomLayer1Weight', 'BloomLayer0Weight', 'BloomTintOuter', 'BloomTintInner', 'bUseGlareBloom']
+  [Class] DownloadableContentManager  (gears3 7 -> judgment 8 props)
+      + ['QueuedFullyLoadPackageInis']
+  [Class] Engine  (gears3 232 -> judgment 237 props)
+      + ['DropRateSlowMultiplier', 'DropRate2Range', 'DropRate1Range', 'bDebug_DisableConnectionTimeout', 'UseSkeletalMeshTickOptimization']
+  [Class] ExponentialHeightFogComponent  (gears3 11 -> judgment 12 props)
+      + ['bUseTexturedFog']
+  [Class] FileWriter  (gears3 5 -> judgment 6 props)
+      + ['CustomFilePath']
+  [Class] HeightFogComponent  (gears3 7 -> judgment 8 props)
+      + ['bUseTexturedFog']
+  [Class] InterpActor  (gears3 18 -> judgment 19 props)
+      + ['bDisableCheckpointSaving']
+  [Class] InterpTrackInstSound  (gears3 2 -> judgment 3 props)
+      + ['bPreviewStopped']
+  [Class] InterpTrackSound  (gears3 5 -> judgment 6 props)
+      + ['FadeOutTime']
+  [ScriptStruct] LightmassWorldInfoSettings  (gears3 18 -> judgment 23 props)
+      + ['EnvironmentLightDirection', 'EnvironmentLightTerminatorAngle', 'EnvironmentSunIntensity', 'EnvironmentSunColor', 'bEnableAdvancedEnvironmentColor']
+  [Class] LocalPlayer  (gears3 18 -> judgment 20 props)
+      + ['AlternateSize', 'AlternateOrigin']
+  [Class] MaterialExpressionFontSampleParameter  (gears3 2 -> judgment 3 props)
+      + ['Group']
+  [Class] MaterialExpressionParameter  (gears3 2 -> judgment 3 props)
+      + ['Group']
+  [Class] MaterialExpressionTextureSampleParameter  (gears3 2 -> judgment 3 props)
+      + ['Group']
+  [ScriptStruct] NavMeshPathParams  (gears3 10 -> judgment 11 props)
+      + ['bCanClimbUp']
+  [Class] ParticleModuleRequired  (gears3 33 -> judgment 40 props)
+      + ['PivotPointShiftZ', 'FarCullDistance', 'FarFadeDistance', 'NearFadeDistance', 'NearCullDistance', 'bEnableFarParticleCulling', 'bEnableNearParticleCulling']
+  [ScriptStruct] PerPlayerSplitscreenData  (gears3 4 -> judgment 8 props)
+      + ['AlternateOriginY', 'AlternateOriginX', 'AlternateSizeY', 'AlternateSizeX']
+  [Class] PlayerReplicationInfo  (gears3 41 -> judgment 42 props)
+      + ['bWasInvited']
+  [ScriptStruct] PostProcessSettings  (gears3 82 -> judgment 125 props)
+      + ['AdaptiveLuminance_InterpolationDuration', 'AdaptiveLuminance_AdaptationJitterBetweenFrames', 'AdaptiveLuminance_AdaptationConstantMultiplier', 'AdaptiveLuminance_bAdaptationForceConstantMul', 'AdaptiveLuminance_AdaptationMultiplierLowCap', 'AdaptiveLuminance_AdaptationMultiplierHighCap', 'AdaptiveLuminance_AdaptationTargetLuminance', 'AdaptiveLuminance_AdaptationPercentageOverLum', 'AdaptiveLuminance_AdaptationToDarkTime', 'AdaptiveLuminance_AdaptationToBrightTime', 'Bloom_DirtMaskTexture', 'Bloom_DirtMaskColor', 'Bloom_DirtMaskIntensity', 'Bloom_Layer4Weight', 'Bloom_Layer3Weight', 'Bloom_Layer2Weight', 'Bloom_Layer1Weight', 'Bloom_Layer0Weight', 'Bloom_TintOuter', 'Bloom_TintInner', 'Bloom_Layers', 'bEnableAdaptiveLuminance', 'bOverride_AdaptiveLuminance_InterpolationDuration', 'bOverride_AdaptiveLuminance_AdaptationJitterBetweenFrames', 'bOverride_AdaptiveLuminance_AdaptationConstantMultiplier', 'bOverride_AdaptiveLuminance_bAdaptationForceConstantMul', 'bOverride_AdaptiveLuminance_AdaptationMultiplierLowCap', 'bOverride_AdaptiveLuminance_AdaptationMultiplierHighCap', 'bOverride_AdaptiveLuminance_AdaptationTargetLuminance', 'bOverride_AdaptiveLuminance_AdaptationPercentageOverLum', 'bOverride_AdaptiveLuminance_AdaptationToDarkTime', 'bOverride_AdaptiveLuminance_AdaptationToBrightTime', 'bOverride_EnableAdaptiveLuminance', 'bOverride_Bloom_DirtMaskTexture', 'bOverride_Bloom_DirtMaskColor', 'bOverride_Bloom_DirtMaskIntensity', 'bOverride_Bloom_Layer4Weight', 'bOverride_Bloom_Layer3Weight', 'bOverride_Bloom_Layer2Weight', 'bOverride_Bloom_Layer1Weight', 'bOverride_Bloom_Layer0Weight', 'bOverride_Bloom_TintOuter', 'bOverride_Bloom_TintInner']
+  [Class] Pylon  (gears3 33 -> judgment 38 props)
+      + ['VoxelFilterTM', 'VoxelFilterBounds', 'NavMeshGenerator', 'bAllowRecastGenerator', 'bUseRecast']
+  [ScriptStruct] RenderingPerformanceOverrides  (gears3 5 -> judgment 6 props)
+      + ['bAllowAdaptiveLuminance']
+  [ScriptStruct] ReverbSettings  (gears3 4 -> judgment 5 props)
+      + ['CustomParameters']
+  [Class] ReverbVolume  (gears3 5 -> judgment 9 props)
+      + ['EQFadeOutTime', 'EQFadeInTime', 'EQSettings', 'bApplyEQ']
+  [Class] SeqAct_AndGate  (gears3 3 -> judgment 5 props)
+      + ['InputsCount', 'bResetWhenFired']
+  [Class] SeqAct_Interp  (gears3 29 -> judgment 30 props)
+      + ['bShowMessageSkippable']
+  [Class] SeqAct_MultiLevelStreaming  (gears3 3 -> judgment 8 props)
+      + ['TimeBetweenCalls', 'PCResponsed', 'PCCalled', 'LevelsLoadedOnServer', 'bCheckIfFinishedForAllPlayers']
+  [Class] SeqAct_PlaySound  (gears3 9 -> judgment 10 props)
+      + ['bDeleteCueAfterPlayback']
+  [Class] SeqAct_SetSoundMode  (gears3 2 -> judgment 3 props)
+      + ['bSetExclusive']
+  [Class] SkeletalMeshComponent  (gears3 192 -> judgment 197 props)
+      + ['AccumulatedDroppedDeltaTime', 'LastDropRateChange', 'LastDropRate', 'TickCount', 'bUseTickOptimization']
+  [Class] SoundCue  (gears3 14 -> judgment 15 props)
+      + ['LimitsGroup']
+  [Class] SoundMode  (gears3 7 -> judgment 8 props)
+      + ['EQPriority']
+  [Class] SoundNodeAmbient  (gears3 14 -> judgment 16 props)
+      + ['OmniRadius', 'bDisableLooping']
+  [Class] SoundNodeAttenuation  (gears3 10 -> judgment 11 props)
+      + ['OmniRadius']
+  [Class] SoundNodeMixer  (gears3 1 -> judgment 3 props)
+      + ['InputFBPan', 'InputPan']
+  [Class] SoundNodeRandom  (gears3 4 -> judgment 6 props)
+      + ['FBPanPots', 'PanPots']
+  [ScriptStruct] SoundTrackKey  (gears3 4 -> judgment 6 props)
+      + ['bDeleteCueAfterPlayback', 'Pan']
+  [Class] StaticMeshActor  (gears3 2 -> judgment 3 props)
+      + ['PreCombinedStaticMeshActors']
+  [Class] UberPostProcessEffect  (gears3 22 -> judgment 33 props)
+      + ['AdaptationJitterBetweenFrames', 'AdaptationConstantMultiplier', 'AdaptationMultiplierLowCap', 'AdaptationMultiplierHighCap', 'AdaptationTargetLuminance', 'AdaptationPercentageOverLum', 'AdaptationToDarkTime', 'AdaptationToBrightTime', 'bAdaptationForceConstantMul', 'bEnableAdaptiveLuminance', 'PostProcessAAType']
+  [Class] WorldInfo  (gears3 161 -> judgment 162 props)
+      + ['InteractiveMusic']
+
+=== Judgment-only classes in this package ===
+  ActorFactoryAmbientSoundSimpleSpline (0 props)
+  ActorFactoryAmbientSoundSimpleSplineNonLoop (0 props)
+  ActorFactoryAmbientSoundSpline (1 props)
+  ActorFactoryAmbientSoundSplineBase (0 props)
+  ActorFactoryAmbientSoundSplineMultiCue (0 props)
+  AmbientSoundSimpleSpline (1 props)
+  AmbientSoundSimpleSplineNonLoop (0 props)
+  AmbientSoundSpline (3 props)
+  AmbientSoundSplineMultiCue (1 props)
+  AskedClient (2 props)
+  CustomReverbParameters (13 props)
+  DominantDirectionalLightAdaptiveShadowRadius (0 props)
+  DominantDirectionalLightAdaptiveShadowRadiusComponent (4 props)
+  DominantDirectionalLightAdaptiveShadowRadiusVolume (2 props)
+  ForcedLoopSoundNode (0 props)
+  InteractiveMusicChain (3 props)
+  InteractiveMusicChainNode (5 props)
+  InteractiveMusicSubsystem (7 props)
+  Interface_PylonGeometryProvider (0 props)
+  InterpPointOnSpline (3 props)
+  InterpTrackInstSoundClassMix (3 props)
+  InterpTrackSoundClassMix (2 props)
+  MeshBatchComponent (6 props)
+  MultiCueSplineAudioComponent (2 props)
+  MultiCueSplineSoundSlot (11 props)
+  MusicChainTransition (2 props)
+  MusicSet (1 props)
+  MusicSetSection (3 props)
+  PathDebug (0 props)
+  PreCombinedStaticMeshActor (7 props)
+  SeqAct_DynamicSoundSwitch (11 props)
+  SeqAct_InteractiveMusicEvent (1 props)
+  SeqAct_SelectInteractiveMusicChain (1 props)
+  SeqAct_WaitForLevelsLoaded (5 props)
+  SimpleSplineAudioComponent (11 props)
+  SimpleSplineNonLoopAudioComponent (10 props)
+  SoundClassMixTrackKey (4 props)
+  SoundLimitsGroup (6 props)
+  SoundNodeAttenuationAndGain (16 props)
+  SoundNodeEnveloper (14 props)
+  SoundTriggeringVolume (3 props)
+  SplineAudioComponent (3 props)
+  SplineComponentSimplified (0 props)
+  SplineSoundSlot (11 props)
