@@ -1,5 +1,44 @@
 # Judgment native-port - build-tree status
 
+## Session XXVI (2026-09-30): guarded AI singleton/accessor experiment
+
+All work stays in this separate source/game copy. The new PDB reader validates
+213,859 public symbols and selects 578 AI interface records from the original
+Release debug file. Its GUID/age matches the original image. Native inspection
+shows that full AISystem behavior needs ETQSystem, AISpawnManager and AIDebugTool
+Init/Tick; AIDirector needs its finite-state machine. These remain unported.
+
+Experimental loader: GearGame-JudgmentLoader-ws19-ai-accessors-v2.exe,
+59,433,472 bytes, SHA-256
+78371AE6D7A9D82644DAB33D0B4F4ECB87BC86CD3C376F49F0F1175EC083D971.
+Private patch 0019-ws-ai-accessors-prototype.patch: 5,548 bytes, SHA-256
+fabe7279a2e9c454c7dea2e51eb97bd8c7951b85d391fe90ac2142983f2d63eb.
+Reverse/forward application reproduces both source files exactly.
+
+-JUDGAIACCESSORS selects prototype native bindings. Three original companion
+controllers (Carmine, Barrick, Gus) get the same rooted Transient.AISystem_0,
+not a CDO, and live Transient.SmartSpawner_0 reaches SetInstance. The three
+null AISystem possession warnings disappear. Missing Squad and AI logging
+warnings remain. Native Init/Tick and map cleanup are explicitly incomplete;
+this layer does not establish an encounter or companion movement.
+
+100-second D3D9 test passes original startup and objective 1: 11,374 exact
+loads, zero size mismatches/fatal errors, 15 paired ticks (last 98.87 seconds,
+game time 68.453), seven levels and 4,010 presents (last 95.37 seconds).
+The campaign gate verifies three callers, a real singleton/live spawner, and
+the explicit partial-init disclosure. Its report retains the limits.
+138 unit tests pass, including 17 PDB and 10 accessor evidence cases.
+
+The harness still defaults to ws18. With the AI flag off, ws19 uses the old
+native lookup tables. Full encounters, checkpoint restoration, AI movement,
+main-campaign route, input and streamed lighting remain unverified.
+Final flag-off PkgInfo/thin-map/SP_E2_P controls pass; the mission passes its
+startup/objective gate with 11,374 exact loads and ten paired ticks (last 71.29 s).
+There are no prototype markers, and the prior three null-system possession
+warnings/accessor fallbacks remain, confirming that the new behavior is conditional.
+See NostalgiaBundle/projects/judgment-native/AI-NATIVE-CHECKPOINT.md.
+Protected Gears 3 verification: 20,284 files, zero changes.
+
 ## Session XXV (2026-09-30): original campaign startup and first objective
 
 Read-only sequence tracing confirms the original Aftermath startup graph runs
