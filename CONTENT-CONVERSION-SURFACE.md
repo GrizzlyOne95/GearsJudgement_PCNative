@@ -908,3 +908,32 @@ detail is in the workspace `JUDGMENT-PORT-STATUS.md` (Session XVIII).
   foreign-platform cache in Judgment packages (`[JUDGSHADERCACHE]`).
 - `SP_E2_P.shadercache.le.xxx`: 1,430/1,433 converted; only 3 `SkeletalMesh` tails remain.
   Runtime (ws7 loader) loads 557 exports exactly; next stop `COG_Barrick` (`SkeletalMesh`).
+
+## Session XIX: complete SP_E2_P mesh conversion and native boot (2026-09-30)
+
+Continued from `3baf313` on `judgment/skeletalmesh-20260930`, using only the separate
+`Judgment Port Workspace` engine source. The inherited packed-position loader implementation
+now builds, is v845/opt-in gated, validates finite positions and emits unpack telemetry.
+
+`skeletal_mesh.py` precisely walks the complete skeleton, LODs, alternate influences and trailer;
+`be2le.py` supplies the `bHasVertexColors` tag to the walker. The former speculative mesh handler
+is removed. Unknown widths, bulk-storage modes, counts or export boundaries fail and roll back.
+
+`SP_E2_P.skeletalmesh-20260930.le.xxx`: **1,433/1,433 fully converted**, zero unsupported/partial,
+11,814,162 bytes, SHA-256 `6B3893A3C6830AF6DCE5F1EDB0C2502852B4D970D8B1B3F2660A19AAEB11E3B0`.
+Differences from the prior shader-cache checkpoint are confined to three mesh native tails.
+Independent package validation reports zero invalid references, 24/24 texture and 254/254
+sound frames. Tests pass 39/39, including every synthetic-mesh truncation point.
+
+Loader `ws9-skeletalmesh-verified` loads **1,402 exports exactly** (no mismatches), including all
+three meshes, and expands four packed LODs. Logged positions match independent source decoding.
+SP_E2_P reaches map-loaded/world-first-tick/Baird possession, then fails on the missing streamed
+package `SP_E2_01`. PkgInfo exits 0; the thin map stays alive/possessed for 75 seconds. These are
+headless tests; visible rendering and gameplay remain unverified.
+
+Campaign protection: 20,284 files checked; zero changes in either campaign install or the shared
+campaign source. Tests use `-NOHOMEDIR` and the isolated runtime only.
+
+Next: `SP_E2_01` assesses at 3,039/4,919 converted, 1,880 unmodelled geometry/lighting/component
+tails; its partial output is not staged. See `SKELETAL-MESH-CHECKPOINT.md` for retained artifacts,
+private engine patch 0009, exact hashes, regression commands and the next work boundary.
