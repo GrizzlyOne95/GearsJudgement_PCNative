@@ -1,5 +1,40 @@
 # Judgment native-port - build-tree status
 
+## Session XXIV (2026-09-30): texture recovery and resolved Baird materials
+
+The separate workspace now stages 30 recovered textures / 291 inline PC mips.
+Baird's six textures select the intended PC body, eye and hair master materials.
+The missing parents were caused by inheriting PKG_RequireImportsAlreadyLoaded
+from the monolithic startup package; explicit extraction --resolve-imports clears
+only that flag. All source, binaries, content and tests remain in this copy.
+
+Accepted artifacts:
+- Baird asset-v4-deps: 118,700,264 bytes, BA5FBC78DD44680DD934912D12433C21EC13F7E975144C47159D28430F84371E.
+- SP_E2_P textures-v2: 25,859,182 bytes, E99602F9221A3063E771488EC09A39C9F182A5E748B7CFE961E80D847261307C.
+- ws17-material-trace loader: 59,422,720 bytes, 794CFE38D3207A69EB27793AED577337EFCFF738DC43D5F1F3CADCFC4A309C41.
+- Private patch 0017-ws-material-trace.patch: 431D7717D05B664D610B410FE02D393C2AB489DF2DD2DA7BC52427833B3C5187.
+
+Final corrected-base 100-second D3D9 test passes: 11,374 exact native loads,
+zero size mismatches/fatal errors, 15 paired ticks (last 98.25 seconds), 4,319
+presented frames (last 99.64 seconds). ScreenShot00004.bmp shows recognizable
+armor detail but remains dark with a blue cast. Screenshot SHA-256:
+E3DE45540FA728FB69C24971109BC1CA11E03B2A021D114B5FE7031A5BF35ABC.
+PkgInfo, thin-map and SP_E2_P headless tests on ws17 also pass. 83 unit tests pass.
+
+The first LUT attempt incorrectly assumed omitted MipTailBaseIdx meant -1 and
+produced black pixels; base-textures-v1 is rejected. The actual default is zero.
+The corrected 256x16 one-mip lookup matches all 4,096 pixel/16,384 byte addresses
+measured using Judgment's own Xbox360Tools cooker. Six streamed map archives,
+animations and navigation data remain unchanged. Streamed lightmaps, shadow maps,
+environment pixels, material dependency coverage and playable input, collision,
+AI/cover, inventory and audio remain outstanding.
+
+Tooling/evidence: NostalgiaBundle\projects\judgment-native\TEXTURE-PROTOTYPE-CHECKPOINT.md.
+Protected Gears 3 baseline: 20,284 files, zero changes. Only original tooling and
+docs are pushed on the two separate Judgment branches; retail assets, engine
+source and private patches/binaries stay outside Git.
+
+
 ## Session XXIII (2026-09-30): Baird mesh and first rendered prototype
 
 The isolated `judgment/port-workspace` now runs a 100-second D3D9 prototype
