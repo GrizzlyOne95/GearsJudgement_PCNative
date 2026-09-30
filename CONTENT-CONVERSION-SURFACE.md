@@ -1020,3 +1020,25 @@ are missing, and script initialization warnings persist. Input/physics/AI/cover/
 are unverified. Further SP_E2_03_S assessment is unstaged (687 complete/101 unmodelled of
 788 exports), requiring morph data and variable-key animation grammar. See
 `ANIMATION-PROTOTYPE-CHECKPOINT.md` for accepted patch/binary hashes, evidence and commands.
+
+## Session XXIII (2026-09-30): Baird loads and D3D9 presents the first scene
+
+Continues `d1a4180` on the isolated converter branch. The seven unchanged maps
+plus an extracted 108-export Baird asset package now stage 12,812 exports.
+The 100-second D3D9 run passes 11,374 exact native loads, zero mismatches/fatal
+errors, continuing seven-level world ticks and 3,825 recorded presentations.
+Baird uses his intended mesh/physics with 123 bones/local atoms/space bases.
+The engine screenshot visibly contains the player and geometry, with incorrect
+Xbox textures and lighting. Camera/input, collision, AI/cover and audio remain
+unverified. This is a rendering milestone, not completed campaign gameplay.
+
+Startup asset extraction remaps 156 typed references and preserves physical
+bulk offsets. Owner-qualified array metadata resolves the `Constraints`
+float/object collision. The isolated loader honors explicit NoTextureStreaming
+before RHI startup, preventing the observed D3D9 mip-copy crash. New optional
+player/presentation diagnostics and engine screenshot capture are retained as
+private patches 0015/0016. PkgInfo, thin-map and SP_E2_P headless regressions
+also pass; 72 unit tests pass and all seven map artifacts regenerate identically.
+See `PLAYER-RENDER-CHECKPOINT.md` for source/artifact/binary hashes, accepted
+patches, rejected evidence, reproduction and the texture recovery priority.
+Final Gears 3 protection: 20,284 files checked, zero changes.

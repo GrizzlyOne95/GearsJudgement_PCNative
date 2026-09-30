@@ -56,6 +56,8 @@ class BoundedNativeWalker:
         self.fields([4, 4])
 
     def object_ref(self):
+        self.need(4)
+        self.converter.record_object_ref(self.pos)
         if not self.converter.valid_object_ref(self.integer()):
             raise NativeLayoutError("invalid native object reference")
 
@@ -66,4 +68,3 @@ class BoundedNativeWalker:
         if count and any(self.converter.src[self.pos + (count - 1) * width:self.pos + count * width]):
             raise NativeLayoutError("unterminated native string")
         self.fields([width] * count)
-
