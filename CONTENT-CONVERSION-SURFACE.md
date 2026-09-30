@@ -1068,3 +1068,26 @@ and retained validation evidence. All source/build/content work remains in the
 separate Judgment workspace. The campaign baseline verifies 20,284 protected
 files with zero changes. Converter and documentation branches are pushed to the
 existing GearsJudgement_PCNative remote; retail assets and engine changes are excluded.
+
+## Session XXV: original mission startup and first active objective (2026-09-30)
+
+The isolated ws18 loader now traces actual Kismet execution and reads the local
+player's objective manager through script reflection. Original startup reaches
+streaming completion, four squad factories' All Spawned outputs, the checkpoint
+action, cinematic-mode release, camera fade, chapter title and the first active
+objective. No events or objectives are injected by the probe.
+
+Independent BE/LE comparisons preserve 510 sequence objects (including eight
+InterpData members), 210 connected outputs and 225 variable references across
+SP_E2_P, SP_E2_01_S and SP_E2_02_S. The runtime audit validates operation classes,
+connector values and ordered milestones, then requires objective 1 to exist in
+the real player manager with completed/failed false. `-CampaignStartup` makes
+that audit part of the regression harness. 111 unit tests pass.
+
+The 100-second D3D9 run passes 11,374 exact loads, 15 paired ticks and 4,319
+presentations; the final 75-second PkgInfo/thin-map/SP_E2_P suite also passes,
+including the campaign gate. Director/spawn-system native fallbacks and AI
+warnings remain. Checkpoint restore, encounters and playable full campaign
+behavior are still unverified. See `CAMPAIGN-STARTUP-CHECKPOINT.md` for hashes,
+private patch 0018 and retained evidence. The Gears 3 protection audit again
+checks 20,284 files with zero changes.
