@@ -53,7 +53,7 @@ FACEFX_FILE_FORMAT_VERSION = 0
 # Property value widths that can be swapped without consulting the script packages.
 SCALAR = {
     "IntProperty": [4], "FloatProperty": [4], "ObjectProperty": [4],
-    "ComponentProperty": [4], "ClassProperty": [4], "InterfaceProperty": [4, 4],
+    "ComponentProperty": [4], "ClassProperty": [4], "InterfaceProperty": [4],
     "NameProperty": [4, 4], "QWordProperty": [8], "ByteProperty": [],
     "BoolProperty": [],
 }
@@ -78,13 +78,17 @@ PACKAGE_FILE_TAG_BE = b"\x9e\x2a\x83\xc1"
 
 
 class Converter:
-    def __init__(self, blob, array_types=None):
+    def __init__(self, blob, array_types=None, track_references=False, array_owners=None):
         self.src = bytes(blob)
         self.out = bytearray(blob)
         self.unsupported = collections.Counter()
         self.stats = collections.Counter()
         # "PropertyName" -> {"elem":..., "struct":..., "widths":...}, from array_types.py.
         self.array_types = array_types or {}
+        # Physical locations, not guessed integer values. Asset extraction uses
+        # these typed fields to remap package indices without touching scalar data.
+        self.object_reference_offsets = [] if track_references else None
+        self.array_owners = array_owners or {}
 
     def try_region(self, off, end, attempt):
         """Run `attempt`; if it fails, restore the bytes and counters it touched.
@@ -95,10 +99,13 @@ class Converter:
         """
         saved = bytes(self.out[off:end])
         stats, unsupported = collections.Counter(self.stats), collections.Counter(self.unsupported)
+        reference_count = len(self.object_reference_offsets or [])
         if attempt():
             return True
         self.out[off:end] = saved
         self.stats, self.unsupported = stats, unsupported
+        if self.object_reference_offsets is not None:
+            del self.object_reference_offsets[reference_count:]
         return False
 
     # -- primitives ------------------------------------------------------
@@ -115,6 +122,12 @@ class Converter:
         if imports is None or exports is None:
             return True
         return value == 0 or (0 < value <= exports) or (-imports <= value < 0)
+
+    def record_object_ref(self, off):
+        if self.object_reference_offsets is not None:
+            if not self.valid_object_ref(self.i32(off)):
+                raise ValueError("invalid extracted object reference at %d" % off)
+            self.object_reference_offsets.append(off)
 
     def valid_fname(self, off):
         """Validate an FName's table index and nonnegative instance number when possible."""
@@ -253,11 +266,14 @@ class Converter:
         """Swap the native prologue fields; return the offset the tag stream starts at."""
         off = start
         if is_component:
+            self.record_object_ref(off)
             self.swap(off, 4)                            # TemplateOwnerClass
             off += 4
             if template:
                 off = self.swap_seq(off, [4, 4])         # TemplateName FName
         if flags & RF_HAS_STACK:
+            self.record_object_ref(off)
+            self.record_object_ref(off + 4)
             node = self.i32(off)
             off = self.swap_seq(off, [4, 4, 4, 2, 4])    # Node, StateNode, ProbeMask,
             if node != 0:                                # LatentAction, StateStack count
@@ -336,6 +352,10 @@ class Converter:
         if type_name in SCALAR:
             widths = SCALAR[type_name]
             if sum(widths) == size:
+                if type_name in ("ObjectProperty", "ComponentProperty", "ClassProperty", "InterfaceProperty"):
+                    # UInterfaceProperty serializes the object; the interface pointer is rebuilt.
+                    for position in range(off, off + size, 4):
+                        self.record_object_ref(position)
                 self.swap_seq(off, widths)
             elif widths:
                 self.unsupported["%s (size %d)" % (type_name, size)] += 1
@@ -371,6 +391,11 @@ class Converter:
             return
 
         candidates = self.array_types.get(prop_name)
+        if self.object_reference_offsets is not None:
+            owner_key = getattr(self, "_current_class_name", "") + "." + prop_name
+            candidates = self.array_owners.get(owner_key, candidates)
+            if candidates and len(candidates) > 1:
+                raise ValueError("ambiguous extracted array type: %s" % owner_key)
         if not candidates:
             self.unsupported["array %s: type unknown (%dB)" % (prop_name, size)] += 1
             return
@@ -384,16 +409,20 @@ class Converter:
     def array_with(self, names, entry, body, end, count, depth):
         """Try one candidate element type. Returns False without writing if it does not fit."""
         widths = entry.get("widths")
+        elem_type = entry.get("elem")
         if widths:
             # Arithmetic is the check: a wrong element type almost never divides evenly.
             if (end - body) != count * sum(widths):
                 return False
             pos = body
             for _ in range(count):
+                if elem_type in ("ObjectProperty", "ComponentProperty", "ClassProperty"):
+                    self.record_object_ref(pos)
+                elif self.object_reference_offsets is not None and elem_type == "StructProperty" and entry.get("struct") not in ATOMIC_STRUCT:
+                    raise ValueError("untyped fixed-width struct references: %s" % entry.get("struct"))
                 pos = self.swap_seq(pos, widths)
             return True
 
-        elem_type = entry.get("elem")
         if elem_type == "ByteProperty":
             # Plain byte arrays serialize one byte each; enum-backed bytes serialize FNames.
             if end - body == count:
@@ -416,6 +445,8 @@ class Converter:
             if primitive:
                 pos = body
                 for _ in range(count):
+                    if elem_type in ("ObjectProperty", "ComponentProperty", "ClassProperty"):
+                        self.record_object_ref(pos)
                     pos = self.swap_seq(pos, primitive)
             return True
         if elem_type == "StrProperty":
@@ -904,11 +935,17 @@ class Converter:
         off = self.tarray(off, self.fstring)                          # CompileErrors
         if off is None:
             return None
-        off = self.tarray(off, lambda p: self.swap_seq(p, [4, 4]))  # TextureDependencyLengthMap
+        def dependency(p):
+            self.record_object_ref(p)
+            return self.swap_seq(p, [4, 4])
+        off = self.tarray(off, dependency)  # TextureDependencyLengthMap
         if off is None or off + 24 > end:
             return None
         off = self.swap_seq(off, [4, 4, 4, 4, 4, 4])     # MaxTextureDependencyLength, Id, NumUserTexCoords
-        off = self.tarray(off, lambda p: self.swap_seq(p, [4]))     # UniformExpressionTextures
+        def texture(p):
+            self.record_object_ref(p)
+            return self.swap_seq(p, [4])
+        off = self.tarray(off, texture)     # UniformExpressionTextures
         if off is None or off + 24 > end:
             return None
         # bUsesSceneColor, bUsesSceneDepth, bUsesDynamicParameter, bUsesLightmapUVs,
@@ -1102,6 +1139,7 @@ class Converter:
                 continue
             unsupported_before = sum(self.unsupported.values())
             class_name = class_of(class_index)
+            self._current_class_name = class_name
             template = bool(flags & RF_CLASS_DEFAULT_OBJECT) or self.is_template(exports, outer_index)
             end = offset + size
             if class_name in ("DominantDirectionalLightComponent", "DominantSpotLightComponent"):

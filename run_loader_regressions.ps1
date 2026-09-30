@@ -1,12 +1,16 @@
 # Judgment-only tests. NOHOMEDIR keeps configuration and save writes in this copy.
 param(
-    [string]$Exe = 'GearGame-JudgmentLoader-ws14-headless-streaming-init-v2.exe',
-    [string]$Tag = ('ws14-' + (Get-Date -Format 'yyyyMMdd-HHmmssfff')),
+    [string]$Exe = 'GearGame-JudgmentLoader-ws16-render-prototype-v2.exe',
+    [string]$Tag = ('ws16-' + (Get-Date -Format 'yyyyMMdd-HHmmssfff')),
     [int]$BootSeconds = 75,
     [switch]$PrototypeTrace = $true,
+    [ValidateSet('NullRHI','D3D9')] [string]$Renderer = 'NullRHI',
+    [switch]$CaptureScreenshot,
+    [switch]$RequirePlayerMesh = $true,
     [ValidateRange(0,120)] [int]$SampleStackAtSeconds = 0,
     [string]$DebuggerExe,
     [string]$StreamingPackages = 'SP_E2_01,SP_E2_02,SP_E2_W,SP_E2_01_S,SP_E2_Audio,SP_E2_02_S',
+    [string]$AssetPackages = 'COG_Baird_Jack',
     [ValidateSet('pkginfo','thinmap','sp_e2_p')]
     [string[]]$Cases = @('pkginfo','thinmap','sp_e2_p')
 )
@@ -23,16 +27,19 @@ if ($SampleStackAtSeconds -and ($SampleStackAtSeconds -ge $BootSeconds -or -not 
 $exePath = Join-Path $binDir $Exe
 if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) { throw "Missing loader: $exePath" }
 # These tests exercise loading and world ticks without texture streaming. The
-# ws14 helper disables streaming before startup loads and skips NullRHI cache saves.
-$common = '-user -NOHOMEDIR -JUDGMENTPKGVER=845 -forcelogflush -unattended -nopause -nosound -nullrhi -NoTextureStreaming'
+# ws16 honors the explicit option before startup loads and skips NullRHI cache saves.
+$common = '-user -NOHOMEDIR -JUDGMENTPKGVER=845 -forcelogflush -unattended -nopause -nosound -NoTextureStreaming'
+$common += if ($Renderer -eq 'NullRHI') { ' -nullrhi' } else { ' -d3d9 -windowed -ResX=1280 -ResY=720' }
 if ($PrototypeTrace) { $common += ' -JUDGPROTOTRACE' }
-if ($StreamingPackages) {
-    if ($StreamingPackages -notmatch '^[A-Za-z0-9_]+(,[A-Za-z0-9_]+)*$') { throw 'Invalid streaming package list.' }
-    foreach ($package in $StreamingPackages.Split(',')) {
+if ($CaptureScreenshot -and $Renderer -eq 'D3D9') { $common += ' -JUDGSHOT' }
+$convertedPackages = (@($StreamingPackages, $AssetPackages) | Where-Object { $_ }) -join ','
+if ($convertedPackages) {
+    if ($convertedPackages -notmatch '^[A-Za-z0-9_]+(,[A-Za-z0-9_]+)*$') { throw 'Invalid converted package list.' }
+    foreach ($package in $convertedPackages.Split(',')) {
         $map = Join-Path $workspace "GearGame\Content\Maps\$package.gear"
         if (-not (Test-Path -LiteralPath $map -PathType Leaf)) { throw "Missing converted streaming map: $map" }
     }
-    $common += " -JUDGMENTSTREAMINGPACKAGES=$StreamingPackages"
+    $common += " -JUDGMENTSTREAMINGPACKAGES=$convertedPackages"
 }
 $definitions = @(
     @{ Name = 'pkginfo'; Args = "PkgInfo $common -JUDGMENTCDOWATCH" },
@@ -70,6 +77,16 @@ $results = foreach ($definition in $definitions | Where-Object { $_.Name -in $Ca
     $completedTicks = [regex]::Matches($text, '(?m)^\[([0-9.]+)\].*\[JUDGPROTO\] tick-end serial=(\d+) game-time=([0-9.]+) levels=(\d+)')
     $latestCompletedTickSeconds = if ($completedTicks.Count) { [double]::Parse($completedTicks[$completedTicks.Count - 1].Groups[1].Value, [Globalization.CultureInfo]::InvariantCulture) } else { 0 }
     $tickPass = -not $PrototypeTrace -or ($completedTicks.Count -ge 2 -and $latestCompletedTickSeconds -ge ($BootSeconds - 15))
+    $playerMeshes = [regex]::Matches($text, '\[JUDGPROTO\] player-mesh pawn=(\S+) mesh=(\S+) physics=(\S+) bones=(\d+) local-atoms=(\d+) space-bases=(\d+) animsets=(\d+) animations=(\S+) hidden=(\d+)')
+    $latestPlayerMesh = if ($playerMeshes.Count) { $playerMeshes[$playerMeshes.Count - 1] } else { $null }
+    $playerMeshPass = -not $RequirePlayerMesh -or ($latestPlayerMesh -and $latestPlayerMesh.Groups[2].Value -ne 'None' -and
+        $latestPlayerMesh.Groups[3].Value -ne 'None' -and [int]$latestPlayerMesh.Groups[4].Value -gt 0 -and
+        $latestPlayerMesh.Groups[4].Value -eq $latestPlayerMesh.Groups[5].Value -and
+        $latestPlayerMesh.Groups[4].Value -eq $latestPlayerMesh.Groups[6].Value -and
+        $latestPlayerMesh.Groups[8].Value -ne 'None' -and $latestPlayerMesh.Groups[9].Value -eq '0')
+    $presents = [regex]::Matches($text, '(?m)^\[([0-9.]+)\].*\[JUDGPROTO\] d3d9-present frames=(\d+) width=(\d+) height=(\d+)')
+    $latestPresentSeconds = if ($presents.Count) { [double]::Parse($presents[$presents.Count - 1].Groups[1].Value, [Globalization.CultureInfo]::InvariantCulture) } else { 0 }
+    $presentPass = $Renderer -eq 'NullRHI' -or -not $PrototypeTrace -or ($presents.Count -ge 2 -and $latestPresentSeconds -ge ($BootSeconds - 15))
     $meshNames = @('COG_Barrick', 'COG_Gus_Summer_CamSkel', 'COG_Clayton_Carmine')
     $meshLoads = [regex]::Matches($text, '\[JUDGPRELOAD\] leave exp=\d+ obj=(COG_Barrick|COG_Gus_Summer_CamSkel|COG_Clayton_Carmine) .* pkg=Judgment_SP_E2_P(?:\s|$)').Count
     $packedLoads = [regex]::Matches($text, '\[JUDGMESH\] unpacked vertices=').Count
@@ -92,11 +109,11 @@ $results = foreach ($definition in $definitions | Where-Object { $_.Name -in $Ca
     if ($definition.Name -eq 'pkginfo') {
         $result = if (-not $timedOut -and $process.ExitCode -eq 0 -and $text.Contains('Success - 0 error(s)')) { 'PASS' } else { 'FAIL' }
     } elseif ($definition.Name -eq 'thinmap') {
-        $result = if ($timedOut -and $possessed -and -not $critical -and $mismatches -eq 0 -and $tickPass) { 'PASS' } else { 'FAIL' }
+        $result = if ($timedOut -and $possessed -and -not $critical -and $mismatches -eq 0 -and $tickPass -and $playerMeshPass -and $presentPass) { 'PASS' } else { 'FAIL' }
     } else {
         $meshPass = $leaves.Count -ge 1402 -and $mismatches -eq 0 -and $meshLoads -eq 3 -and $basePackedLoads -eq 4 -and $possessed
         foreach ($package in $streamedLoads.Keys) { $meshPass = $meshPass -and $streamedLoads[$package] -gt 0 }
-        $result = if (-not $meshPass) { 'FAIL' } elseif ($critical -or -not $tickPass) { 'BLOCKED_AFTER_BOOT' } elseif ($timedOut) { 'PASS' } else { 'FAIL' }
+        $result = if (-not $meshPass) { 'FAIL' } elseif ($critical -or -not $tickPass -or -not $playerMeshPass -or -not $presentPass) { 'BLOCKED_AFTER_BOOT' } elseif ($timedOut) { 'PASS' } else { 'FAIL' }
     }
     $row = [pscustomobject]@{
         Case = $definition.Name; Result = $result; ExactLoads = $leaves.Count - $mismatches
@@ -106,6 +123,11 @@ $results = foreach ($definition in $definitions | Where-Object { $_.Name -in $Ca
         Possessed = $possessed; TimedOut = $timedOut; ExitCode = $process.ExitCode
         Critical = $critical; Log = $log
         StreamingLoads = $streamedLoads
+        Renderer = $Renderer; RequirePlayerMesh = [bool]$RequirePlayerMesh; PlayerMeshPass = [bool]$playerMeshPass
+        PlayerMesh = if ($latestPlayerMesh) { $latestPlayerMesh.Groups[2].Value } else { $null }
+        PlayerBones = if ($latestPlayerMesh) { [int]$latestPlayerMesh.Groups[4].Value } else { 0 }
+        PresentedFrames = if ($presents.Count) { [int]$presents[$presents.Count - 1].Groups[2].Value } else { 0 }
+        LatestPresentSeconds = $latestPresentSeconds; PresentPass = [bool]$presentPass
     }
     $row | ConvertTo-Json -Compress | Write-Host
     $row
