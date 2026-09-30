@@ -109,7 +109,16 @@ def validate(runtime_log=None):
               "meshes": rows}
     if runtime_log:
         log = Path(runtime_log).read_text(errors="replace")
-        observed = re.findall(r"\[JUDGMESH\] unpacked vertices=(\d+) texcoords=(\d+) first=\(([^)]+)\)", log)
+        pattern = r"\[JUDGMESH\] unpacked vertices=(\d+) texcoords=(\d+) first=\(([^)]+)\)"
+        if "pkg=Judgment_SP_E2_P" in log:
+            observed = []
+            for enter in re.finditer(r"\[JUDGPRELOAD\] enter exp=(\d+) obj=(\S+) cls=SkeletalMesh[^\r\n]* pkg=Judgment_SP_E2_P(?:\s|$)", log):
+                remaining = log[enter.end():]
+                leave = re.search(r"\[JUDGPRELOAD\] leave exp=" + enter[1] + r" obj=" + re.escape(enter[2]) + r"[^\r\n]* pkg=Judgment_SP_E2_P(?:\s|$)", remaining)
+                assert leave is not None, "base mesh load did not complete"
+                observed.extend(re.findall(pattern, remaining[:leave.start()]))
+        else:
+            observed = re.findall(pattern, log)  # retained ws9 traces predate package labels
         assert len(observed) == len(packed), "unexpected native unpack count"
         for actual, expected in zip(observed, packed):
             count, uvs, first = actual

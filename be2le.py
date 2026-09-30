@@ -264,7 +264,8 @@ class Converter:
                 off = self.swap_seq(off, [4])            # Offset
         return self.swap_seq(off, [4])                   # NetIndex
 
-    def tags(self, names, off, end, depth=0, bool_properties=None, array_counts=None):
+    def tags(self, names, off, end, depth=0, bool_properties=None, array_counts=None,
+             property_ranges=None):
         """Swap a tagged-property stream. Returns the end position, or None if not one."""
         if not 0 <= off <= end <= len(self.src):
             return None
@@ -300,6 +301,8 @@ class Converter:
             if value + size > end:
                 return None
             prop_name = names[idx]
+            if property_ranges is not None:
+                property_ranges[prop_name] = (type_name, extra_name, value, size)
             if bool_properties is not None and type_name == "BoolProperty":
                 bool_properties[prop_name] = bool(self.src[value - 1])
             if array_counts is not None and type_name == "ArrayProperty" and size >= 4:
@@ -471,12 +474,14 @@ class Converter:
     def binary_struct(self, name, off, end=None, exact=False, names=None):
         """Walk persistent script fields at their serialized widths within a bounded region."""
         from immutable_cover import CoverWalker
+        from native_animation import AimWalker
         from native_reader import NativeLayoutError
         end = len(self.src) if end is None else end
         result = {}
         def attempt():
             try:
-                result["stop"] = CoverWalker(self, off, end, names).walk(name)
+                walker = AimWalker if name in AimWalker.STRUCTS else CoverWalker
+                result["stop"] = walker(self, off, end, names).walk(name)
                 return result["stop"] == end if exact else True
             except NativeLayoutError:
                 return False
@@ -760,6 +765,19 @@ class Converter:
     def tail_pylon(self, off, end):
         return self.tail_navigation(off, end, "pylon")
 
+    def tail_combat_zone(self, off, end):
+        if not getattr(self, "_native_bool_properties", {}).get("bCombatZoneBuilt", False):
+            return None
+        return self.tail_navigation(off, end, "combat_zone")
+
+    def tail_animation(self, off, end):
+        from native_animation import AnimationWalker
+        from native_reader import NativeLayoutError
+        try:
+            return AnimationWalker(self, off, end).walk()
+        except NativeLayoutError:
+            return None
+
     def dominant_light_payload(self, off, end, names, template=False, flags=0):
         """Dominant lights serialize their WORD shadow array BEFORE Super/UObject."""
         from native_geometry import GeometryWalker
@@ -996,6 +1014,7 @@ class Converter:
 
     NATIVE_TAILS = {"Polys": "tail_polys", "World": "tail_world", "Model": "tail_model",
                     "NavigationMeshBase": "tail_navigation", "Pylon": "tail_pylon",
+                    "CombatZone": "tail_combat_zone", "AnimSequence": "tail_animation",
                     "SkeletalMesh": "tail_skeletalmesh",
                     "FaceFXAnimSet": "tail_facefx", "FaceFXAsset": "tail_facefx",
                     "Material": "tail_material",
@@ -1117,7 +1136,9 @@ class Converter:
                     start = self.prologue(is_component, template, flags, offset)
                     result["bools"] = {}
                     result["arrays"] = {}
-                    result["stop"] = self.tags(names, start, end, bool_properties=result["bools"], array_counts=result["arrays"])
+                    result["properties"] = {}
+                    result["stop"] = self.tags(names, start, end, bool_properties=result["bools"],
+                                               array_counts=result["arrays"], property_ranges=result["properties"])
                     return result["stop"] is not None
 
                 if self.try_region(offset, end, attempt):
@@ -1137,6 +1158,8 @@ class Converter:
                 # needs an explicit model; without one the bytes stay big-endian.
                 self._skeletal_mesh_has_vertex_colors = result["bools"].get("bHasVertexColors", False)
                 self._native_array_counts = result["arrays"]
+                self._native_bool_properties = result["bools"]
+                self._native_property_ranges = result["properties"]
                 if self.native_tail(class_name, stop, end):
                     self.stats["native_tail_converted"] += 1
                     if sum(self.unsupported.values()) == unsupported_before:

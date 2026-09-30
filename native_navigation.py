@@ -16,6 +16,14 @@ class NavigationWalker(BoundedNativeWalker):
         self.actor_reference()
         self.fields([4])
 
+    def combat_zone(self):
+        def entry():
+            self.poly_reference()
+            self.fields([4])  # LinkedPolyMap value
+        count = self.array(entry, 28)
+        self.converter.stats["combat_zone_polys"] += count
+        return self.pos
+
     def vertex(self):
         self.fields([4] * 3)
         self.fixed_array([2])  # PolyIndices
