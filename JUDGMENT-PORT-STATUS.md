@@ -47,6 +47,11 @@ Follow-up (same day, user-approved): the three other gates with the same broken
   under the opt-in, so `tail_model` now keeps 16 and walks Verts as a normal `[4,4,4,4]` bulk.
   The thin map's pinned hash therefore changes (new stage `E7658EA5...`).
 
+FaceFX (same day): Judgment FaceFX payloads are `FACB` FxArchives from SDK 1740 / file format 0,
+exactly what this engine's FaceFX SDK loads (it byte-swaps big-endian archives itself). The
+converter now swaps only the two UE3 array counts. `SP_E2_P` loads **84** exports exactly; the
+next blocker is export 69 `Helmet_MASTER` (`Material` native tail - `FMaterialResource`).
+
 Regression runner: `GearsJudgement_PCNative\scripts\run-judgment-regressions.ps1 -Exe <loader>`
 (PkgInfo clean exit / converted thin-map boot + possession / SP_E2_P exact-size preloads).
 `GearGame-JudgmentLoader-ws4-optin-all.exe` (`0D4AF80E...`) passes all three.
