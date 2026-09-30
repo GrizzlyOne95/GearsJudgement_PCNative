@@ -9,6 +9,7 @@ param(
     [switch]$MaterialTrace,
     [switch]$SequenceTrace,
     [switch]$CampaignStartup,
+    [switch]$AIPrototype,
     [switch]$RequirePlayerMesh = $true,
     [ValidateRange(0,120)] [int]$SampleStackAtSeconds = 0,
     [string]$DebuggerExe,
@@ -36,6 +37,7 @@ $common += if ($Renderer -eq 'NullRHI') { ' -nullrhi' } else { ' -d3d9 -windowed
 if ($PrototypeTrace) { $common += ' -JUDGPROTOTRACE' }
 if ($MaterialTrace) { $common += ' -JUDGMATERIALTRACE' }
 if ($SequenceTrace -or $CampaignStartup) { $common += ' -JUDGSEQUENCETRACE' }
+if ($AIPrototype) { $common += ' -JUDGAIACCESSORS' }
 if ($CaptureScreenshot -and $Renderer -eq 'D3D9') { $common += ' -JUDGSHOT' }
 $convertedPackages = (@($StreamingPackages, $AssetPackages) | Where-Object { $_ }) -join ','
 if ($convertedPackages) {
