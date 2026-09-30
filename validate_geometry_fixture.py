@@ -1,10 +1,10 @@
 """Verify retained geometry archives, BSP reference topology, and native load telemetry."""
 import hashlib
+import argparse
 import json
 from pathlib import Path
 import re
 import struct
-import sys
 
 from be2le import Converter, load_array_types
 
@@ -61,9 +61,11 @@ def bsp_topology(source, tail, end, endian):
                 i not in referenced_vertices and not 0 <= v[0] < len(points) for i, v in enumerate(verts))}
 
 
-def validate(runtime_log=None):
+def validate(runtime_log=None, base_artifact=None, base_textures=None):
     rows = []
     for package, (filename, count) in PACKAGES.items():
+        if package == "SP_E2_P" and base_artifact:
+            filename = Path(base_artifact).name
         source = (FIXTURES / (package + ".xxx.unc")).read_bytes()
         output = (FIXTURES / filename).read_bytes()
         manifest = json.loads((FIXTURES / filename.replace(".le.xxx", ".manifest.json")).read_text())
@@ -73,7 +75,14 @@ def validate(runtime_log=None):
         converter.summary()
         exports = converter.tables()
         converter.payloads(exports, names, lambda i: imports[-i - 1] if i < 0 else ("Class" if i == 0 else "?"))
-        assert len(source) == len(output) and converter.out == output
+        regenerated = bytes(converter.out)
+        if package == "SP_E2_P" and base_textures:
+            from replace_texture_pixels import Package as TexturePackage, replace
+            parsed = TexturePackage(regenerated)
+            fixtures = {e.name: (Path(base_textures) / (e.name + ".upk")).read_bytes()
+                        for e in parsed.exports if parsed.class_name(e) == "Texture2D"}
+            regenerated, _ = replace(regenerated, fixtures)
+        assert regenerated == output
         assert converter.stats["converted"] == count and not converter.unsupported
         assert manifest["package_version"] == 845 and manifest["byte_order"] == "little"
         layout = manifest["layout_validation"]
@@ -121,12 +130,20 @@ def validate(runtime_log=None):
             row["runtime_exact_loads"] = len(leaves)
             row["runtime_bsp_stride_expansion_matches"] = True
         rows.append(row)
-    return {"packages": rows, "warning": "Headless framing/topology validation; pixel detiling, codecs, physics and visible gameplay are not established."}
+    return {"packages": rows, "warning": "Framing/topology validation; texture bytes and rendering require separate audits. Physics and playable gameplay are not established."}
 
 
 if __name__ == "__main__":
-    report = validate(sys.argv[1] if len(sys.argv) > 1 else None)
-    destination = Path(sys.argv[2]) if len(sys.argv) > 2 else FIXTURES / "geometry-20260930.validation.json"
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("log", type=Path, nargs="?")
+    parser.add_argument("report", type=Path, nargs="?", default=FIXTURES / "geometry-20260930.validation.json")
+    parser.add_argument("--base-artifact", type=Path)
+    parser.add_argument("--base-textures", type=Path)
+    args = parser.parse_args()
+    if bool(args.base_artifact) != bool(args.base_textures):
+        parser.error("--base-artifact and --base-textures must be supplied together")
+    report = validate(args.log, args.base_artifact, args.base_textures)
+    destination = args.report
     if destination.exists():
         raise SystemExit("refusing to replace retained validation evidence")
     destination.write_text(json.dumps(report, indent=2) + "\n")

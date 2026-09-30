@@ -1042,3 +1042,29 @@ also pass; 72 unit tests pass and all seven map artifacts regenerate identically
 See `PLAYER-RENDER-CHECKPOINT.md` for source/artifact/binary hashes, accepted
 patches, rejected evidence, reproduction and the texture recovery priority.
 Final Gears 3 protection: 20,284 files checked, zero changes.
+
+
+## Session XXIV (2026-09-30): texture pixels and Baird material parents
+
+Thirty textures / 291 mip levels now contain inline linear PC data: six Baird
+textures and SP_E2_P's 23 character textures plus its night color lookup.
+`replace_texture_pixels.py` appends recovered C++ fixture pixels while retaining
+object/name indices and original normal unpack, SRGB, LOD and clamp settings.
+Independent probe/property audits verify all mip bytes and unmodified exports.
+`--resolve-imports` clears the extracted startup preload-only flag; Baird's body,
+eye and hair resolve their intended PC masters and select all six recovered textures.
+
+The one-mip LUT omits MipTailBaseIdx because its class default is zero. The first
+base-textures-v1 attempt incorrectly treated it as unpacked and is rejected.
+The corrected packed output matches all 4,096 pixel/16,384 byte addresses measured
+with Judgment's own Xbox360Tools cooker. Accepted base map is textures-v2 and
+Baird is asset-v4-deps; six streamed maps remain unchanged. The final 100-second
+D3D9 run passes 11,374 exact loads, 15 paired tick reports and 4,319 presents.
+Armor detail is recognizable, but the dark environment and blue lighting persist;
+playable campaign behavior is still unverified. 83 unit tests pass.
+
+See `TEXTURE-PROTOTYPE-CHECKPOINT.md` for hashes, private patch 0017, reproduction
+and retained validation evidence. All source/build/content work remains in the
+separate Judgment workspace. The campaign baseline verifies 20,284 protected
+files with zero changes. Converter and documentation branches are pushed to the
+existing GearsJudgement_PCNative remote; retail assets and engine changes are excluded.

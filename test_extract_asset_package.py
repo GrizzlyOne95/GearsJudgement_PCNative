@@ -69,6 +69,19 @@ def fixture():
 
 
 class AssetExtractionTests(unittest.TestCase):
+    def test_extracted_dependency_loading_flag_is_explicit_and_bounded(self):
+        source, manifest, arrays, owners, _ = fixture()
+        source = bytearray(source)
+        struct.pack_into(">I", source, 21, 0x00880008)
+        retained, _ = extract(source, manifest, "Hero", arrays, owners)
+        resolved, report = extract(source, manifest, "Hero", arrays, owners, resolve_imports=True)
+        self.assertEqual(struct.unpack_from("<I", retained, 21)[0], 0x00880008)
+        self.assertEqual(struct.unpack_from("<I", resolved, 21)[0], 0x00080008)
+        masked = bytearray(resolved)
+        masked[21:25] = retained[21:25]
+        self.assertEqual(bytes(masked), retained)
+        self.assertTrue(report["resolve_external_imports"])
+
     def test_typed_references_change_but_matching_integer_does_not(self):
         source, manifest, arrays, owners, fields = fixture()
         output, report = extract(source, manifest, "Hero", arrays, owners)
