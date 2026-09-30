@@ -72,6 +72,39 @@ def audit_ai_accessor_layer(text):
             "encounter_verified": False}
 
 
+def audit_companion_squads(text, player_controller):
+    enabled = "-JUDGAISQUADTRACE" in text
+    if not enabled:
+        if "[JUDGAISQUAD]" in text:
+            raise GraphError("squad probe ran without its explicit flag")
+        return None
+    rows = re.findall(
+        r"\[JUDGAISQUAD\] controller=(\S+) pawn=(\S+) squad-readable=(\d+) squad=(\S+) "
+        r"pri-readable=(\d+) pri=(\S+) team-readable=(\d+) team=(\S+) "
+        r"leader-readable=(\d+) leader=(\S+) members-readable=(\d+) members=(-?\d+) self-index=(-?\d+)", text)
+    summary = re.findall(r"\[JUDGAISQUAD\] snapshot controllers=(\d+) scanned=(\d+) limit=(\d+) game-time=([0-9.]+)", text)
+    if len(rows) != 3 or len(summary) != 1 or summary[0][:3] != ("3", "4", "0") or float(summary[0][3]) < 30:
+        raise GraphError("missing complete companion membership snapshot after startup")
+    if len({r[0] for r in rows}) != 3 or len({r[1] for r in rows}) != 3 or len({r[5] for r in rows}) != 3:
+        raise GraphError("companion controller/pawn/PRI identities are not distinct")
+    for row in rows:
+        if not row[0].startswith("Judgment_SP_E2_P.TheWorld:PersistentLevel.GearAI_"):
+            raise GraphError("squad controller is outside the original mission")
+        if any(row[i] != "1" for i in (2, 4, 6, 8, 10)) or any(row[i] == "None" for i in (1, 3, 5, 7, 9)):
+            raise GraphError("unreadable or absent companion membership dependency")
+        if row[9] != player_controller or row[11] != "4":
+            raise GraphError("squad leader/size differs from the original startup fixture")
+    if len({r[3] for r in rows}) != 1 or len({r[7] for r in rows}) != 1:
+        raise GraphError("companions do not share one squad and team")
+    if sorted(int(r[12]) for r in rows) != [1, 2, 3]:
+        raise GraphError("companions are absent from distinct squad member entries")
+    return {"squad": rows[0][3], "team": rows[0][7], "leader": player_controller,
+            "array_entries": 4, "verified_ai_members": [
+                {"controller": r[0], "pawn": r[1], "pri": r[5], "member_index": int(r[12])}
+                for r in sorted(rows)], "snapshot_game_seconds": float(summary[0][3]),
+            "player_array_entry_verified": False, "movement_or_encounter_verified": False}
+
+
 def audit_log(text, graphs):
     if "-JUDGSEQUENCETRACE" not in text or "[JUDGSEQ] trace-limit" in text:
         raise GraphError("missing or truncated campaign execution trace")
@@ -158,6 +191,7 @@ def audit_log(text, graphs):
         "fallback_counts_are_reported_thresholds": True,
         "script_warnings_by_function": dict(warnings.most_common()),
         "experimental_ai_accessor_layer": audit_ai_accessor_layer(text),
+        "companion_squad_membership": audit_companion_squads(text, state[1].rsplit(".", 1)[0]),
         "checkpoint_save_restore_verified": False, "encounter_verified": False,
     }
 

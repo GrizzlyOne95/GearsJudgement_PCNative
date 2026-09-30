@@ -10,6 +10,7 @@ param(
     [switch]$SequenceTrace,
     [switch]$CampaignStartup,
     [switch]$AIPrototype,
+    [switch]$AISquadTrace,
     [switch]$RequirePlayerMesh = $true,
     [ValidateRange(0,120)] [int]$SampleStackAtSeconds = 0,
     [string]$DebuggerExe,
@@ -36,8 +37,9 @@ $common = '-user -NOHOMEDIR -JUDGMENTPKGVER=845 -forcelogflush -unattended -nopa
 $common += if ($Renderer -eq 'NullRHI') { ' -nullrhi' } else { ' -d3d9 -windowed -ResX=1280 -ResY=720' }
 if ($PrototypeTrace) { $common += ' -JUDGPROTOTRACE' }
 if ($MaterialTrace) { $common += ' -JUDGMATERIALTRACE' }
-if ($SequenceTrace -or $CampaignStartup) { $common += ' -JUDGSEQUENCETRACE' }
+if ($SequenceTrace -or $CampaignStartup -or $AISquadTrace) { $common += ' -JUDGSEQUENCETRACE' }
 if ($AIPrototype) { $common += ' -JUDGAIACCESSORS' }
+if ($AISquadTrace) { $common += ' -JUDGAISQUADTRACE' }
 if ($CaptureScreenshot -and $Renderer -eq 'D3D9') { $common += ' -JUDGSHOT' }
 $convertedPackages = (@($StreamingPackages, $AssetPackages) | Where-Object { $_ }) -join ','
 if ($convertedPackages) {
