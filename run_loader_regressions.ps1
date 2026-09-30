@@ -1,12 +1,14 @@
 # Judgment-only tests. NOHOMEDIR keeps configuration and save writes in this copy.
 param(
-    [string]$Exe = 'GearGame-JudgmentLoader-ws17-material-trace.exe',
-    [string]$Tag = ('ws17-' + (Get-Date -Format 'yyyyMMdd-HHmmssfff')),
+    [string]$Exe = 'GearGame-JudgmentLoader-ws18-sequence-objectives.exe',
+    [string]$Tag = ('ws18-' + (Get-Date -Format 'yyyyMMdd-HHmmssfff')),
     [int]$BootSeconds = 75,
     [switch]$PrototypeTrace = $true,
     [ValidateSet('NullRHI','D3D9')] [string]$Renderer = 'NullRHI',
     [switch]$CaptureScreenshot,
     [switch]$MaterialTrace,
+    [switch]$SequenceTrace,
+    [switch]$CampaignStartup,
     [switch]$RequirePlayerMesh = $true,
     [ValidateRange(0,120)] [int]$SampleStackAtSeconds = 0,
     [string]$DebuggerExe,
@@ -33,6 +35,7 @@ $common = '-user -NOHOMEDIR -JUDGMENTPKGVER=845 -forcelogflush -unattended -nopa
 $common += if ($Renderer -eq 'NullRHI') { ' -nullrhi' } else { ' -d3d9 -windowed -ResX=1280 -ResY=720' }
 if ($PrototypeTrace) { $common += ' -JUDGPROTOTRACE' }
 if ($MaterialTrace) { $common += ' -JUDGMATERIALTRACE' }
+if ($SequenceTrace -or $CampaignStartup) { $common += ' -JUDGSEQUENCETRACE' }
 if ($CaptureScreenshot -and $Renderer -eq 'D3D9') { $common += ' -JUDGSHOT' }
 $convertedPackages = (@($StreamingPackages, $AssetPackages) | Where-Object { $_ }) -join ','
 if ($convertedPackages) {
@@ -117,6 +120,15 @@ $results = foreach ($definition in $definitions | Where-Object { $_.Name -in $Ca
         foreach ($package in $streamedLoads.Keys) { $meshPass = $meshPass -and $streamedLoads[$package] -gt 0 }
         $result = if (-not $meshPass) { 'FAIL' } elseif ($critical -or -not $tickPass -or -not $playerMeshPass -or -not $presentPass) { 'BLOCKED_AFTER_BOOT' } elseif ($timedOut) { 'PASS' } else { 'FAIL' }
     }
+    $campaignPassed = $null
+    $campaignReport = $null
+    if ($CampaignStartup -and $definition.Name -eq 'sp_e2_p') {
+        $campaignReport = $log + '.campaign.json'
+        $auditOutput = & python (Join-Path $PSScriptRoot 'validate_campaign_fixture.py') $log $campaignReport --quiet 2>&1
+        $campaignPassed = $LASTEXITCODE -eq 0
+        $auditOutput | ForEach-Object { Write-Host $_ }
+        if (-not $campaignPassed -and $result -eq 'PASS') { $result = 'BLOCKED_AFTER_BOOT' }
+    }
     $row = [pscustomobject]@{
         Case = $definition.Name; Result = $result; ExactLoads = $leaves.Count - $mismatches
         SizeMismatches = $mismatches; MeshLoads = $meshLoads; PackedLoads = $packedLoads
@@ -130,6 +142,8 @@ $results = foreach ($definition in $definitions | Where-Object { $_.Name -in $Ca
         PlayerBones = if ($latestPlayerMesh) { [int]$latestPlayerMesh.Groups[4].Value } else { 0 }
         PresentedFrames = if ($presents.Count) { [int]$presents[$presents.Count - 1].Groups[2].Value } else { 0 }
         LatestPresentSeconds = $latestPresentSeconds; PresentPass = [bool]$presentPass
+        CampaignStartup = [bool]$CampaignStartup; CampaignStartupPass = $campaignPassed
+        CampaignReport = $campaignReport
     }
     $row | ConvertTo-Json -Compress | Write-Host
     $row
