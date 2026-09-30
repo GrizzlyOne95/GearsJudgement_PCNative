@@ -1,5 +1,52 @@
 # Judgment native-port - build-tree status
 
+## Session XXII (2026-09-30): animations load and headless world ticks continue
+
+Converter continues from `3acd5d1` on `judgment/skeletalmesh-20260930`; this full
+copy remains on `judgment/port-workspace`. Seven staged maps total **12,704 fully
+converted exports**, zero partial/unsupported. Newly staged SP_E2_02_S has 2,669
+exports and 2,260 observed loads. Current accepted loader is
+`GearGame-JudgmentLoader-ws14-headless-streaming-init-v2.exe`, 59,417,600 bytes,
+SHA-256 `C547AAA6EA69AEDD6CD0D260CAE3119FF66D3E3D90830DC9E3A51DAC0BE22DD9`.
+
+- Final 100-second headless test: **PASS**, 11,266 exact-size native loads, zero
+  mismatches/critical errors, seven loaded levels, 15 paired tick reports through
+  wall-clock 96.84 seconds (serial 4,196, game time 67.850). Baird is possessed.
+- All 28 animations evaluate 6,636 finite native pose samples. Independent BE/LE
+  parsing preserves 3,836 encoded tracks, 48,415 keys, 453 frame tables, four
+  combat maps/164 poly refs and a 32-bone aim profile. Base packed positions match.
+- **65 unit tests pass**, all seven packages regenerate identically and observed
+  preload offsets/classes/sizes match manifests. PkgInfo and 75-second thin-map
+  regressions also pass; thin-map ticks continue through wall-clock 71.01 seconds.
+- Opt-in diagnostics exposed that a live process had stopped world ticking.
+  Read-only debugger stacks traced shader-cache saving and Texture2D linker
+  detachment waits. The accepted fix disables texture streaming at NullRHI init,
+  before startup loads, and omits local cache saves for Judgment NullRHI. The
+  later NoTextureStreaming launch flag alone was insufficient. Renderer-enabled
+  behavior remains normal. Native package serialization is fully exercised.
+- Private patches **0011, 0012, 0014** are accepted after 0009/0010 and pass
+  reverse application checks. **0013/ws13 are rejected**: omitting texture objects
+  crashed ambient occlusion and was reverted. Initial ws14 contained a stale
+  object from that experiment; restored Texture2D.cpp was touched and rebuilt
+  into **ws14-v2**, checked to exclude the rejected code. Texture2D.cpp remains
+  byte-identical to its ws13 before-image.
+- This is a headless loading/world-tick prototype. Player SkeletalMesh is still
+  NULL; external texture bulk mips and script initialization warnings remain.
+  Visible rendering, input, physics, AI/cover behavior and audio are unverified.
+  Next work: player appearance/mesh initialization and texture data for rendering.
+
+New map `GearGame\Content\Maps\SP_E2_02_S.gear` has SHA-256
+`50BB192C7B0C8161D3B2B72C760BFFD8CC1D95C60F8364626F67837759A6257E`.
+The harness defaults to ws14-v2, all six converted retail streaming names,
+NOHOMEDIR, NoTextureStreaming and recent completed-tick checks. Evidence:
+`regress-ws14-headless-streaming-init-v2-sp_e2_p.log`,
+`regress-ws14-prototype-regressions-{pkginfo,thinmap}.log`, their results JSON,
+scratch animation/geometry-headless-prototype validation JSON. See converter
+`ANIMATION-PROTOTYPE-CHECKPOINT.md` for exact accepted patch hashes and reproduction.
+
+Final protected campaign/source verification: **20,284 files, zero changes**.
+All helpers were stopped by their test deadlines; no Judgment helper remains.
+
 ## Session XXI (2026-09-30): cover/navigation package loads; next blocker is animations
 
 Converter continues from `9c14d4c` in its isolated branch. No additional engine
