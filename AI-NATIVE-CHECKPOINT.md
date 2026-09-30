@@ -108,8 +108,57 @@ the same three null-system possession warnings as ws18. This confirms the
 experiment is conditional in the new binary.
 
 Next: port native subsystem Init/Tick and director FSM behavior, then validate
-actual squad membership and the first encounter. Streamed lighting/environment
+the first encounter. Streamed lighting/environment
 textures and the main Museum campaign remain separate content milestones.
 Only tooling/tests/docs are public; engine source/patches, original debug files,
 disassembly, content and binaries stay private. Protected Gears 3 audit:
 20,284 files, zero changes.
+
+## Session XXVII: original squad membership verified
+
+A strict read-only walk of the original SetSquadName function consumes exactly
+506 stored / 730 logical script bytes. The warning at logical offset 0x0151
+comes from reading the previous Squad.Leader before squad joining has finished.
+It does not establish that squad creation failed. The original script remains
+unchanged.
+
+Private patch `0020-ws-squad-state-trace.patch` adds a separately flagged
+`-JUDGAISQUADTRACE` snapshot at the first objective. Loaded property reflection
+reads controller, pawn, PRI, team, squad, leader and each controller's member
+index. The probe checks object/struct offsets and array lengths, scans at most
+64 controllers, captures once, and writes no game state. Its application needs
+`git -c core.autocrlf=false apply` to preserve this source file's existing mixed
+line endings. Reverse/forward replay is byte-identical with that option.
+
+Diagnostic loader `GearGame-JudgmentLoader-ws20-squad-trace.exe`:
+59,436,032 bytes, SHA-256
+`AEFAEE9B3B76BEEBEE17AA48225BE87B348E7A2EE320F9A9B76D9111DA07D3D3`.
+Private patch: 4,694 bytes, SHA-256
+`d88347d43171cb821fba8e3e0365faab3a54735853c3ed2789735b62f0a76f16`.
+
+At game time 30.125 seconds, Carmine, Barrick and Gus have distinct live pawns
+and PRIs, share GearTeamInfo_0 and GearSquad_0, and appear at member indices
+1, 2 and 3 of a four-entry SquadMembers array. Its leader is the actual local
+player GearPC_AID_0, whose objective manager holds objective 1. The probe does
+not separately inspect the player's array entry; that limit is explicit in
+the report. Movement and encounters are not inferred from membership.
+
+The 100-second NullRHI run with the accessor prototype passes 11,374 exact
+loads, 15 paired ticks (last 96.62 s) and the startup/objective/membership audit.
+A 75-second flag-off control also verifies the same existing membership at
+game time 30.127 s, with 11,374 exact loads and ten paired ticks (last 71.31 s).
+Thus scripted squad formation already works independently of the new singleton
+experiment. The missing native AI subsystem/director behavior remains the
+next implementation surface. ws18 remains the default loader.
+
+The audit now requires three distinct controller/pawn/PRI identities, one team
+and squad, the real player as leader, four array entries and three distinct
+valid member indices. Missing/unreadable objects, duplicate identities,
+different squads/teams, wrong leaders, missing indices or limited snapshots
+fail the membership gate. 145 unit tests pass, including seven new proof cases.
+Retained tags: `ws20-squad-prototype-20260930`, `ws20-squad-baseline-20260930`.
+
+```powershell
+./run_loader_regressions.ps1 -Exe GearGame-JudgmentLoader-ws20-squad-trace.exe -Cases sp_e2_p -BootSeconds 100 -CampaignStartup -AIPrototype -AISquadTrace
+./run_loader_regressions.ps1 -Exe GearGame-JudgmentLoader-ws20-squad-trace.exe -Cases sp_e2_p -CampaignStartup -AISquadTrace
+```

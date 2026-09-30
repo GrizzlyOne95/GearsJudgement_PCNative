@@ -1115,3 +1115,21 @@ startup/objective validation; the prototype layer is absent in its report.
 See `AI-NATIVE-CHECKPOINT.md` for contracts, hashes and retained evidence.
 All source/content/runtime work stays in the separate copy; the protected
 Gears 3 audit remains 20,284 files with zero changes.
+
+## Session XXVII: original companion squad membership (2026-09-30)
+
+The remaining Squad warning is an early read of the previous squad's leader in
+the original SetSquadName script. A bounded read-only ws20 snapshot at the first
+objective proves that Carmine, Barrick and Gus have distinct live pawns/PRIs,
+share one team and squad, occupy member indices 1/2/3 in a four-entry array,
+and have the real local player as their squad leader. The same state is present
+with the AI accessor experiment disabled, so squad formation already works.
+
+The 100-second accessor run and 75-second baseline run pass the original
+startup/objective/membership gates with 11,374 exact loads and 15/10 paired
+ticks respectively. 145 unit tests pass. Private patch 0020 changes no game
+state; its separate flag and bounded reflection probe retain exact evidence.
+The membership gate rejects absent/unreadable or duplicated objects, wrong
+leaders/teams/squads and missing member indices. Movement, encounters and the
+player's member-array entry are not claimed. Native query/director/goal behavior
+remains the next implementation work; see `AI-NATIVE-CHECKPOINT.md`.
