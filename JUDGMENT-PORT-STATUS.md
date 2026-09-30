@@ -1,5 +1,36 @@
 # Judgment native-port - build-tree status
 
+## Session XXV (2026-09-30): original campaign startup and first objective
+
+Read-only sequence tracing confirms the original Aftermath startup graph runs
+through streaming, four squad factories, the checkpoint action, cinematic-mode
+release, camera fade, chapter title and the first objective. Loaded script
+reflection confirms objective 1 in the real local-player GearObjectiveManager,
+with completed/failed false. The probe injects no events or objectives.
+
+Independent original/converted comparisons preserve 510 sequence objects,
+210 connected outputs and 225 variable references across the three mission
+script maps. 111 unit tests pass. The harness -CampaignStartup option requires
+ordered startup and objective state; loader survival alone cannot pass it.
+
+Accepted loader: GearGame-JudgmentLoader-ws18-sequence-objectives.exe,
+59,429,888 bytes, SHA-256 8C0D1079302C8039CE6C082570A19F82C62BD33F8FF55F4327280CB9BB2AC312.
+Private patch 0018-ws-sequence-objectives.patch:
+E82C494919B013A44E4B0BA475B0D206169C9D05BF8530152043D3441E01637A.
+Reverse/forward replay reproduce source before/after byte-for-byte.
+
+100-second D3D9 test passes 11,374 exact loads, 15 paired ticks, 4,319 presents;
+final 75-second PkgInfo/thin-map/SP_E2_P suite passes with campaign proof.
+Screenshot00005 remains dark/blue. No rendering fix or playable encounter claim.
+
+Observed gameplay fallbacks: AIDirector.Init, AISystem.GetInstance,
+SmartSpawner.SetInstance, SmartSpawner.RunVisibleSpawnPointsCheck, GearAI.PickGoal.
+AI-system/squad warnings remain. Native director/spawn reconstruction, checkpoint
+save/restore, input, encounters and main-campaign route still require validation.
+See NostalgiaBundle/projects/judgment-native/CAMPAIGN-STARTUP-CHECKPOINT.md.
+All work stays in this separate copy. Protected Gears 3: 20,284 files, zero changes.
+
+
 ## Session XXIV (2026-09-30): texture recovery and resolved Baird materials
 
 The separate workspace now stages 30 recovered textures / 291 inline PC mips.
