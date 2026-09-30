@@ -264,7 +264,7 @@ class Converter:
                 off = self.swap_seq(off, [4])            # Offset
         return self.swap_seq(off, [4])                   # NetIndex
 
-    def tags(self, names, off, end, depth=0):
+    def tags(self, names, off, end, depth=0, bool_properties=None):
         """Swap a tagged-property stream. Returns the end position, or None if not one."""
         while off < end:
             idx = self.i32(off)
@@ -292,6 +292,8 @@ class Converter:
             if value + size > end:
                 return None
             prop_name = names[idx]
+            if bool_properties is not None and type_name == "BoolProperty":
+                bool_properties[prop_name] = bool(self.src[value - 1])
             self.swap_seq(off, [4] * 6)                  # Name, Type, Size, ArrayIndex
             if extra_name is not None:
                 self.swap_seq(off + 24, [4, 4])
@@ -1089,76 +1091,17 @@ class Converter:
         return self.tmap(off, [4, 4, 4])
 
     def tail_skeletalmesh(self, off, end):
-        """USkeletalMesh::Serialize - handle RefSkeleton and LODModels for nullrhi.
-        LODModels contains bulk vertex data that points outside the file; for a first
-        render we can make it empty (0 LODs) with correct tag header and keep same export size.
-        This handles Bounds, Materials, Origin/RotOrigin, RefSkeleton, SkeletalDepth, then patches LODModels.
+        """Precisely walk the v845 console skeleton, LODs, influences and trailer.
+
+        Packed vertices retain their disk format; the isolated PC loader expands
+        positions after loading. Unknown widths/storage modes fail and roll back.
         """
-        # Bounds: FBoxSphereBounds Origin 12 + BoxExtent 12 + SphereRadius 4 =28 -> 7*4
-        start = off
-        off = self.swap_seq(off, [4]*7)
-        if off is None:
+        from skeletal_mesh import MeshLayoutError, SkeletalMeshWalker
+        try:
+            return SkeletalMeshWalker(self, off, end,
+                                     getattr(self, "_skeletal_mesh_has_vertex_colors", False)).walk()
+        except MeshLayoutError:
             return None
-        # Materials: TArray<UMaterialInterface*>
-        off = self.tarray(off, lambda p: self.swap_seq(p, [4]))
-        if off is None:
-            return None
-        # Origin/RotOrigin: FVector(12) + FRotator(12) =24 -> 6*4
-        off = self.swap_seq(off, [4]*6)
-        if off is None:
-            return None
-        # RefSkeleton: TArray<FMeshBone> - FMeshBone is Name(8) + Flags(4) + BonePos(32) + ... = variable, use generic 4B swap for now
-        # For SP_E2_P, RefSkeleton count is around 128, each FMeshBone ~44B, so use generic for the whole RefSkeleton block
-        # Instead of precise, just handle RefSkeleton as generic TArray of 4B words (like tail_generic for the array)
-        # We need to find LODModels after RefSkeleton: it is after RefSkeleton's data and SkeletalDepth (4)
-        # Use tarray with 4B words for RefSkeleton's elements (each FMeshBone's first fields are Name/Flags)
-        # For now, handle RefSkeleton via tarray that swaps every 4B word in its elements
-        ref_cnt_off = off
-        ref_cnt = self.i32(ref_cnt_off)
-        if ref_cnt <0 or ref_cnt>500:
-            return None
-        self.swap(ref_cnt_off, 4)
-        off += 4
-        # Each FMeshBone: Name 8 + Flags 4 + BonePos 32 (FMatrix 64? actually FBoneAtom 32) + ... total ~44-64, but use 4B swap for the whole
-        # For simplicity, treat the RefSkeleton data as opaque 4B words
-        if off + ref_cnt*44 > end:  # heuristic 44B per bone
-            # Fallback to generic for RefSkeleton
-            return self.tail_generic(start, end)
-        for _ in range(ref_cnt):
-            # Name FName 8
-            off = self.swap_seq(off, [4,4])
-            if off is None:
-                return None
-            # Flags 4
-            off = self.swap_seq(off, [4])
-            if off is None:
-                return None
-            # BonePos: FBoneAtom is 32 bytes (4*8? actually FQuat 16 + FVector 12 + float 4 =32)
-            off = self.swap_seq(off, [4]*8)
-            if off is None:
-                return None
-        # SkeletalDepth: INT
-        off = self.swap_seq(off, [4])
-        if off is None:
-            return None
-        # LODModels: TArray<FStaticLODModel> - for nullrhi, make it empty (0)
-        lod_cnt = self.i32(off)
-        if 0 <= lod_cnt <= 10:
-            self.swap(off, 4)
-            struct.pack_into("<i", self.out, off, 0)
-            # Keep old LODModels data as garbage but not read (since count 0, loader skips)
-            # Need to ensure the rest of the export (RefBasesInvMatrix etc. after LODModels) is still at correct offset
-            # Since we kept same export size, the bytes after the old LODModels data (which is now garbage) will be at wrong offset for the next field.
-            # Instead, we need to correctly handle the remaining fields after LODModels via generic, but with the new count 0, the next field should be immediately after the count (off+4), not after the old data.
-            # For same-length preservation, we need to keep the old data length, so the next field's offset in the file remains at old position (off+4+old_cnt*size), but the loader will expect it at off+4 (since count 0). This mismatch will cause the next field to be read from the wrong offset (garbage).
-            # To keep same length and make it loadable, we need to do relocation like coverslot_expand, not just patch count.
-            # For now, fallback to generic for the rest to at least make it not crash on bulk, and rely on the loader's ability to handle the old LODModels data as opaque bulk that will be skipped due to count 0? Actually the loader will skip the old data, but the file still has the old data at the old offset, so the next field (RefBasesInvMatrix) will be read from the wrong offset (still at old offset, not at off+4).
-            # This is a known limitation of same-length patching for variable-length arrays; proper fix requires relocation.
-            # For now, use generic for the whole tail after Bounds to at least make the Ints correct, and rely on the fact that the old LODModels data will be interpreted as the next fields but with swapped Ints it might still be parsable as the next fields if the old LODModels data is mostly zeros?
-            # For SP_E2_P, the old LODModels data for the 3 SkeletalMesh is 1M each, mostly bulk, not zeros, so this will fail.
-            # Fallback to generic for the entire remaining
-            return self.tail_generic(off+4, end)
-        return None
 
     def tail_facefx(self, off, end):
         """UFaceFXAnimSet / UFaceFXAsset::Serialize: two TArray<BYTE> (UnFaceFXAnimSet.cpp:348).
@@ -1211,11 +1154,8 @@ class Converter:
             return None
         return self.swap_seq(off, [4])
 
-    # tail_skeletalmesh is a blind 4-byte-swap experiment (2026-09-05) and is deliberately NOT
-    # registered: it bypassed the fail-closed policy below. The 37 MB UClass read it was meant
-    # to work around was the loader's JUDGMENTPKGVER opt-in never firing (ParseParam rejects
-    # "-JUDGMENTPKGVER=845"), fixed in the engine on 2026-09-30.
     NATIVE_TAILS = {"Polys": "tail_polys", "World": "tail_world", "Model": "tail_model",
+                    "SkeletalMesh": "tail_skeletalmesh",
                     "FaceFXAnimSet": "tail_facefx", "FaceFXAsset": "tail_facefx",
                     "Material": "tail_material",
                     "PhysicsAssetInstance": "tail_physics_asset_instance",
@@ -1230,11 +1170,9 @@ class Converter:
     NATIVE_PAYLOADS = {"Class": "tail_class"}
 
     def native_tail(self, class_name, off, end):
-        """Swap a modelled native tail. True only if the model lands exactly on `end`.
-        Falls back to generic 4B word swap for a whitelist of unmodelled tails
-        (MaterialInstance* , Material, Model, SkeletalMesh, PhysicsAssetInstance,
-        FaceFX*, ShaderCache populated) to get SP_E2_P past LoadMap for nullrhi.
-        Whitelist avoids masking the fail-closed tests for SoundNodeWave/Texture2D etc.
+        """Swap a modelled tail only when its serializer lands exactly on `end`.
+
+        Unknown tails keep their original bytes and are counted as unsupported.
         """
         method = self.NATIVE_TAILS.get(class_name)
         result = {}
@@ -1316,7 +1254,8 @@ class Converter:
 
                 def attempt(is_component=is_component, result=result):
                     start = self.prologue(is_component, template, flags, offset)
-                    result["stop"] = self.tags(names, start, end)
+                    result["bools"] = {}
+                    result["stop"] = self.tags(names, start, end, bool_properties=result["bools"])
                     return result["stop"] is not None
 
                 if self.try_region(offset, end, attempt):
@@ -1334,6 +1273,7 @@ class Converter:
             elif stop < end:
                 # Tags terminated, but native data follows. Its layout is per-class C++, so it
                 # needs an explicit model; without one the bytes stay big-endian.
+                self._skeletal_mesh_has_vertex_colors = result["bools"].get("bHasVertexColors", False)
                 if self.native_tail(class_name, stop, end):
                     self.stats["native_tail_converted"] += 1
                     if sum(self.unsupported.values()) == unsupported_before:
