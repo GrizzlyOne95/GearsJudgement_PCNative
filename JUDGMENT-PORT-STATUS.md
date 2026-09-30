@@ -1,5 +1,34 @@
 # Judgment native-port - build-tree status
 
+## Session XXIII (2026-09-30): Baird mesh and first rendered prototype
+
+The isolated `judgment/port-workspace` now runs a 100-second D3D9 prototype
+with 11,374 exact native loads, zero size mismatches/fatal errors, seven levels
+and 3,825 recorded 1280x720 presentations. Baird uses the intended Judgment
+mesh and physics asset with 123 bones/local atoms/space bases. The engine's
+`GearGame\ScreenShots\ScreenShot00000.bmp` shows the player and geometry,
+although textures and lighting remain visibly incorrect. Gameplay is unverified.
+
+Current accepted loader: `GearGame-JudgmentLoader-ws16-render-prototype-v2.exe`,
+59,420,672 bytes, SHA-256
+`89C042031C526FD86A94F30600AFBC26644729A2D2704BCBF6CD47F8EFD0E646`.
+Use v2, which includes screenshot screen-message restoration. Private patches
+0015 (player mesh trace) and 0016 (early explicit NoTextureStreaming, D3D9
+presentation trace and opted-in screenshot) pass reverse applicability checks.
+
+`COG_Baird_Jack.gear` adds 108 extracted startup asset exports to the seven
+unchanged maps: 12,812 staged exports. The converter remaps 156 typed references
+and emits 56 imports without relocating bulk data. Source asset v1 and ws15's
+D3D9 mip-copy failure are retained rejected evidence. Only asset v2 is staged.
+
+Final ws16-v2 PkgInfo, 75-second thin-map and SP_E2_P headless tests all pass.
+72 unit tests pass, all seven maps regenerate identically, native animations
+and base packed-position samples retain their independent validation. Next:
+texture caches, mip tails and detiling, then camera/input and gameplay checks.
+All helpers stopped; 20,284 protected files verified, zero changes.
+
+Full checkpoint: `C:\Games\NostalgiaBundle\projects\judgment-native\PLAYER-RENDER-CHECKPOINT.md`.
+
 ## Session XXII (2026-09-30): animations load and headless world ticks continue
 
 Converter continues from `3acd5d1` on `judgment/skeletalmesh-20260930`; this full
@@ -376,7 +405,7 @@ What fixed it (all verified by offset simulation BEFORE build):
 | --- | --- |
 | `AGearAI` props block reordered to v845 chain order | first observed victim (~AGearAI TArray free) |
 | FileWriter / GearEngine / GearGRI / GearPawn_LocustCorpserLarvaUndergroundBase / GearSpawner / SeqAct_DummyWeaponFire reordered | second victim wave (UGearEngine FString free et al.) |
-| `AGamePlayerController`: removed `FName CurrentSoundMode` (+ its VERIFY line) — v845 dropped it | parent-size delta shifted every GearPC-family descendant; was masquerading as a GearPC/FortUpgradeList issue |
+| `AGamePlayerController`: removed `FName CurrentSoundMode` (+ its VERIFY line) â€” v845 dropped it | parent-size delta shifted every GearPC-family descendant; was masquerading as a GearPC/FortUpgradeList issue |
 
 Tooling added this session:
 
@@ -413,24 +442,24 @@ crash is gone.
 ## Remaining blocker (next phase)
 
 Exit-time (`StaticExit`) incremental purge still faults on classes whose v845 layout
-was *reordered* rather than resized — first observed `AGearAI::~AGearAI` freeing a
+was *reordered* rather than resized â€” first observed `AGearAI::~AGearAI` freeing a
 `TArray<AActor*>`. Proof collected (`-JUDGMENTLAYOUTDUMP`): GearAI totals match
-exactly (both 1924) but member offsets are shuffled (TetherPosition 960→1460,
-CombatMood 1800→961 with elem 4→1, etc.), so post-relink destruction reads wrong
+exactly (both 1924) but member offsets are shuffled (TetherPosition 960â†’1460,
+CombatMood 1800â†’961 with elem 4â†’1, etc.), so post-relink destruction reads wrong
 slots. Same family already fixed by exact-layout matching: MIC editor class
-(v45→v47: ParameterGroups refactor, old arrays kept native-only).
+(v45â†’v47: ParameterGroups refactor, old arrays kept native-only).
 
 Next phase plan: build a generator that emits each affected class's `BEGIN/END PROPS`
 block directly from the runtime `-JUDGMENTLAYOUTDUMP` tables (names+types from current
 headers, order/bitfields from v845 offsets), then sweep all GearGame/Engine classes
 until purge completes. Diagnostics to keep: allocation-size ledger, array-destroy
-validator, flight recorder, layout dumper — all flag-gated and fail-fast.
+validator, flight recorder, layout dumper â€” all flag-gated and fail-fast.
 
 ## Root cause of the old wall (proven)
 
 The "linker heap smash" was never a loader-stream problem. Chain:
 
-1. Several replaced classes had native sizes ≠ v845 reflected sizes
+1. Several replaced classes had native sizes â‰  v845 reflected sizes
    (`SeqAct_ControlGameMovie +4`, `OnlinePlaylistManager +16`,
    `Gear_GrappleHookMarker +60` via missing base `SpawnPoint`,
    `GearSeqVar_Player +16`, `SeqAct_ChapterComplete +16` via re-parent to
@@ -439,18 +468,18 @@ The "linker heap smash" was never a loader-stream problem. Chain:
 2. After the script UClass relinked, replacing the older, smaller native
    allocation ran `appMemzero(Obj, InClass->GetPropertiesSize())`
    (UnObj.cpp StaticAllocateObject) past the end of the block,
-   smashing whichever permanent-pool/heap neighbor followed — linker
+   smashing whichever permanent-pool/heap neighbor followed â€” linker
    fields in one layout, object tables in another (explains every prior
    shifting victim and the "ExportMap flips" observations).
 3. On the destroy side, ExitProperties walked the relinked property chain over
-   old-layout memory → `UArrayProperty::DestroyValue` freed wild pointers
+   old-layout memory â†’ `UArrayProperty::DestroyValue` freed wild pointers
    (now fail-fast guarded).
 
 Diagnostics kept behind flags (all fail-fast, SEH-guarded, safe-formatted):
 allocation-size ledger + `-JUDGMENTREPLACEWATCH`, array-destroy validator (always on),
 bytecode flight recorder + `-JUDGMENTLAYOUTDUMP`, `-JUDGMENTCEXLIMIT=`.
 v31 lesson recorded: previous silent traces died inside their own `debugf` on
-bad `%s` args — never pass unsanitized pointers into Logf.
+bad `%s` args â€” never pass unsanitized pointers into Logf.
 
 ## Class fixes this session
 
@@ -459,9 +488,9 @@ bad `%s` args — never pass unsanitized pointers into Logf.
 | GameFramework.SeqAct_ControlGameMovie | + `BITFIELD InputSkipLock:1;` |
 | IpDrv.OnlinePlaylistManager | + `FContentOfferId` struct, `ContentOfferIds`, `DataCenterIdOverride` |
 | GearGame.ASpawnPoint | new intermediate base (+60 B) between Actor and grapple/spawn markers |
-| GearGame.Gear_GrappleHookMarker | re-parented AActor → ASpawnPoint |
+| GearGame.Gear_GrappleHookMarker | re-parented AActor â†’ ASpawnPoint |
 | GearSeqVar_Player | + `bHumanOnly`, `PlayerSlotObjs` |
-| SeqAct_ChapterComplete | re-parented SequenceAction → SeqAct_Latent |
+| SeqAct_ChapterComplete | re-parented SequenceAction â†’ SeqAct_Latent |
 | AGearPawn | removed native-only `LastTaccomTime`/`PostTaccomFireDelay` (v845 dropped them) |
 | AGearPawn_Infantry | removed C++ MI bases; interface tables live only as explicit `VfTable_*` props resolved by `GetInterfaceAddress`; nav-obstacle dispatch inert until glue ported |
 
@@ -667,7 +696,7 @@ What fixed it (all verified by offset simulation BEFORE build):
 | --- | --- |
 | `AGearAI` props block reordered to v845 chain order | first observed victim (~AGearAI TArray free) |
 | FileWriter / GearEngine / GearGRI / GearPawn_LocustCorpserLarvaUndergroundBase / GearSpawner / SeqAct_DummyWeaponFire reordered | second victim wave (UGearEngine FString free et al.) |
-| `AGamePlayerController`: removed `FName CurrentSoundMode` (+ its VERIFY line) — v845 dropped it | parent-size delta shifted every GearPC-family descendant; was masquerading as a GearPC/FortUpgradeList issue |
+| `AGamePlayerController`: removed `FName CurrentSoundMode` (+ its VERIFY line) â€” v845 dropped it | parent-size delta shifted every GearPC-family descendant; was masquerading as a GearPC/FortUpgradeList issue |
 
 Tooling added this session:
 
@@ -704,24 +733,24 @@ crash is gone.
 ## Remaining blocker (next phase)
 
 Exit-time (`StaticExit`) incremental purge still faults on classes whose v845 layout
-was *reordered* rather than resized — first observed `AGearAI::~AGearAI` freeing a
+was *reordered* rather than resized â€” first observed `AGearAI::~AGearAI` freeing a
 `TArray<AActor*>`. Proof collected (`-JUDGMENTLAYOUTDUMP`): GearAI totals match
-exactly (both 1924) but member offsets are shuffled (TetherPosition 960→1460,
-CombatMood 1800→961 with elem 4→1, etc.), so post-relink destruction reads wrong
+exactly (both 1924) but member offsets are shuffled (TetherPosition 960â†’1460,
+CombatMood 1800â†’961 with elem 4â†’1, etc.), so post-relink destruction reads wrong
 slots. Same family already fixed by exact-layout matching: MIC editor class
-(v45→v47: ParameterGroups refactor, old arrays kept native-only).
+(v45â†’v47: ParameterGroups refactor, old arrays kept native-only).
 
 Next phase plan: build a generator that emits each affected class's `BEGIN/END PROPS`
 block directly from the runtime `-JUDGMENTLAYOUTDUMP` tables (names+types from current
 headers, order/bitfields from v845 offsets), then sweep all GearGame/Engine classes
 until purge completes. Diagnostics to keep: allocation-size ledger, array-destroy
-validator, flight recorder, layout dumper — all flag-gated and fail-fast.
+validator, flight recorder, layout dumper â€” all flag-gated and fail-fast.
 
 ## Root cause of the old wall (proven)
 
 The "linker heap smash" was never a loader-stream problem. Chain:
 
-1. Several replaced classes had native sizes ≠ v845 reflected sizes
+1. Several replaced classes had native sizes â‰  v845 reflected sizes
    (`SeqAct_ControlGameMovie +4`, `OnlinePlaylistManager +16`,
    `Gear_GrappleHookMarker +60` via missing base `SpawnPoint`,
    `GearSeqVar_Player +16`, `SeqAct_ChapterComplete +16` via re-parent to
@@ -730,18 +759,18 @@ The "linker heap smash" was never a loader-stream problem. Chain:
 2. After the script UClass relinked, replacing the older, smaller native
    allocation ran `appMemzero(Obj, InClass->GetPropertiesSize())`
    (UnObj.cpp StaticAllocateObject) past the end of the block,
-   smashing whichever permanent-pool/heap neighbor followed — linker
+   smashing whichever permanent-pool/heap neighbor followed â€” linker
    fields in one layout, object tables in another (explains every prior
    shifting victim and the "ExportMap flips" observations).
 3. On the destroy side, ExitProperties walked the relinked property chain over
-   old-layout memory → `UArrayProperty::DestroyValue` freed wild pointers
+   old-layout memory â†’ `UArrayProperty::DestroyValue` freed wild pointers
    (now fail-fast guarded).
 
 Diagnostics kept behind flags (all fail-fast, SEH-guarded, safe-formatted):
 allocation-size ledger + `-JUDGMENTREPLACEWATCH`, array-destroy validator (always on),
 bytecode flight recorder + `-JUDGMENTLAYOUTDUMP`, `-JUDGMENTCEXLIMIT=`.
 v31 lesson recorded: previous silent traces died inside their own `debugf` on
-bad `%s` args — never pass unsanitized pointers into Logf.
+bad `%s` args â€” never pass unsanitized pointers into Logf.
 
 ## Class fixes this session
 
@@ -750,9 +779,9 @@ bad `%s` args — never pass unsanitized pointers into Logf.
 | GameFramework.SeqAct_ControlGameMovie | + `BITFIELD InputSkipLock:1;` |
 | IpDrv.OnlinePlaylistManager | + `FContentOfferId` struct, `ContentOfferIds`, `DataCenterIdOverride` |
 | GearGame.ASpawnPoint | new intermediate base (+60 B) between Actor and grapple/spawn markers |
-| GearGame.Gear_GrappleHookMarker | re-parented AActor → ASpawnPoint |
+| GearGame.Gear_GrappleHookMarker | re-parented AActor â†’ ASpawnPoint |
 | GearSeqVar_Player | + `bHumanOnly`, `PlayerSlotObjs` |
-| SeqAct_ChapterComplete | re-parented SequenceAction → SeqAct_Latent |
+| SeqAct_ChapterComplete | re-parented SequenceAction â†’ SeqAct_Latent |
 | AGearPawn | removed native-only `LastTaccomTime`/`PostTaccomFireDelay` (v845 dropped them) |
 | AGearPawn_Infantry | removed C++ MI bases; interface tables live only as explicit `VfTable_*` props resolved by `GetInterfaceAddress`; nav-obstacle dispatch inert until glue ported |
 
