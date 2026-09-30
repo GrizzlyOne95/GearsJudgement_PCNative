@@ -894,3 +894,17 @@ detail is in the workspace `JUDGMENT-PORT-STATUS.md` (Session XVIII).
 - `SP_E2_P.facefx.le.xxx`: 1,413/1,433 fully converted, 20 unmodelled tails. Runtime loads 84
   exports exactly; next stop is export 69 `Helmet_MASTER` (`Material` native tail, 148 B) - the
   first rendering-side serializer (`FMaterialResource`).
+
+### Session XVIII continued: Material, Model, PhysicsAssetInstance, shader cache (2026-09-30)
+
+- `tail_material` / `tail_material_instance`: Judgment's `FMaterial` block matches v828
+  `FMaterial::Serialize` exactly (all 4-byte fields); MICs add `FStaticParameterSet` (switch 32 B,
+  mask 44 B, normal 29 B incl. one BYTE, terrain weight 32 B). 11/11 materials convert.
+- `tail_model` now handles populated BSP: `FBspNode` 64 B element model, `Surfs` as a
+  `TTransArray` (owner + 15-field `FBspSurf` - UnModel.h size comments are stale), zones,
+  `FModelVertex` 36 B (Xbox packed normals are W,Z,Y,X so a DWORD swap is correct).
+- `tail_physics_asset_instance`: `TMap<FRigidBodyIndexPair,UBOOL>`, 12 B pairs.
+- Populated Xbox `ShaderCache`: only the priority is swapped; the workspace engine skips a
+  foreign-platform cache in Judgment packages (`[JUDGSHADERCACHE]`).
+- `SP_E2_P.shadercache.le.xxx`: 1,430/1,433 converted; only 3 `SkeletalMesh` tails remain.
+  Runtime (ws7 loader) loads 557 exports exactly; next stop `COG_Barrick` (`SkeletalMesh`).

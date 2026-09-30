@@ -696,14 +696,22 @@ class Converter:
     def tail_model(self, off, end):
         """UModel::Serialize, UnModel.cpp:179."""
         off = self.swap_seq(off, [4] * 7)                # Bounds: FBoxSphereBounds
-        for element in ([4, 4, 4], [4, 4, 4], None):     # Vectors, Points, Nodes
+        # FBspNode (UnModel.h:97, 64 bytes in memory and on disk): Plane, iVertPool, iSurf,
+        # iVertexIndex, WORD ComponentIndex, WORD ComponentNodeIndex, ComponentElementIndex,
+        # iBack/iFront/iPlane, iCollisionBound, BYTE iZone[2], NumVertices, NodeFlags, iLeaf[2].
+        bsp_node = [4, 4, 4, 4, 4, 4, 4, 2, 2, 4, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4]
+        for element in ([4, 4, 4], [4, 4, 4], bsp_node): # Vectors, Points, Nodes
             off = self.bulk(off, element)
             if off is None:
                 return None
-        # Surfs. Source says `Ar << Surfs`, but the data occupies exactly two INTs here and the
-        # rest of the walk only lands on 180 bytes with that shape. Derived from the bytes, not
-        # from the source -- revisit before trusting it on a map with real BSP.
-        off = self.swap_seq(off, [4, 4])
+        # Surfs is a TTransArray: its owner object, then the elements. FBspSurf (UnModel.cpp:39):
+        # Material, PolyFlags, pBase, vNormal, vTextureU, vTextureV, iBrushPoly, Actor, Plane,
+        # ShadowMapScale, LightingChannels, iLightmassIndex - 15 four-byte fields (the Plane is
+        # four), a 60-byte stride. UnModel.h's per-field size comments are stale; count fields.
+        off = self.swap_seq(off, [4])                    # TTransArray owner
+        off = self.tarray(off, lambda p: self.swap_seq(p, [4] * 15))
+        if off is None:
+            return None
         # FVert is 16 bytes in console-cooked data (pVertex, iSide, ShadowTexCoord). The loader
         # reads Judgment_* packages with the console layout (FVert::GetSizeForBulkSerialization
         # returns 16 once -JUDGMENTPKGVER=845 is recognised), so the console size is kept. The
@@ -712,9 +720,11 @@ class Converter:
         if off is None:
             return None
         zones = self.i32(off + 4)
+        if not 0 <= zones <= 64:                         # FBspNode::MAX_ZONES
+            return None
         off = self.swap_seq(off, [4, 4])                 # NumSharedSides, NumZones
-        if zones:
-            return None                                  # FZoneProperties not modelled
+        for _ in range(zones):                           # FZoneProperties: actor, 2 QWORD sets, time
+            off = self.swap_seq(off, [4, 8, 8, 4])
         off = self.swap_seq(off, [4])                    # Polys
         for _ in range(2):                               # LeafHulls, Leaves
             off = self.bulk(off, [4])
@@ -725,7 +735,9 @@ class Converter:
         if off is None:
             return None
         off = self.swap_seq(off, [4])                    # NumUniqueVertices
-        off = self.bulk(off)                             # VertexBuffer
+        # FModelVertex: Position, packed TangentX/TangentZ (the Xbox struct is W,Z,Y,X so a DWORD
+        # swap yields PC X,Y,Z,W - UnRenderUtils.h:10), TexCoord, ShadowTexCoord.
+        off = self.bulk(off, [4] * 9)                    # VertexBuffer
         if off is None:
             return None
         off = self.swap_seq(off, [4] * 4)                # LightingGuid
@@ -895,7 +907,16 @@ class Converter:
         Only accept the exact empty Xbox shape.  Populated caches need their shader data
         rebuilt for PC and deliberately remain unsupported.  The empty cache can safely
         be retargeted from SP_XBOXD3D (2) to SP_PCD3D_SM3 (0) without changing its size.
+
+        A populated Xbox cache (> 17 bytes) keeps its platform byte and body untouched: the
+        body is Xbox GPU microcode that no PC could use. The workspace engine recognises a
+        foreign-platform cache in a Judgment package and seeks past it (ShaderCache.cpp,
+        [JUDGSHADERCACHE]), so only ShaderCachePriority is converted.
         """
+        if end - off > 17 and self.src[off + 4] == 2:
+            self.swap_seq(off, [4])                      # ShaderCachePriority
+            self.stats["xbox_shader_cache_skipped_by_engine"] += 1
+            return end
         if end - off != 17 or self.src[off + 4] != 2:
             return None
         if any(self.i32(pos) != 0 for pos in (off + 5, off + 9, off + 13)):
@@ -1017,6 +1038,55 @@ class Converter:
         if not self.valid_fname(off) or not self.valid_object_ref(self.i32(off + 8)):
             return None
         return self.swap_seq(off, [4, 4, 4])              # DLLBindName FName, ClassDefaultObject
+
+    def fmaterial(self, off, end):
+        """FMaterial::Serialize (MaterialShared.cpp:1210); every scalar is four bytes."""
+        off = self.tarray(off, self.fstring)                          # CompileErrors
+        if off is None:
+            return None
+        off = self.tarray(off, lambda p: self.swap_seq(p, [4, 4]))  # TextureDependencyLengthMap
+        if off is None or off + 24 > end:
+            return None
+        off = self.swap_seq(off, [4, 4, 4, 4, 4, 4])     # MaxTextureDependencyLength, Id, NumUserTexCoords
+        off = self.tarray(off, lambda p: self.swap_seq(p, [4]))     # UniformExpressionTextures
+        if off is None or off + 24 > end:
+            return None
+        # bUsesSceneColor, bUsesSceneDepth, bUsesDynamicParameter, bUsesLightmapUVs,
+        # bUsesMaterialVertexPositionOffset (UBOOLs serialize as DWORDs), UsingTransforms.
+        off = self.swap_seq(off, [4] * 6)
+        off = self.tarray(off, lambda p: self.swap_seq(p, [4, 4, 4, 4]))  # TextureLookups
+        if off is None or off + 4 > end:
+            return None
+        return self.swap_seq(off, [4])                   # DummyDroppedFallbackComponents
+
+    def tail_material(self, off, end):
+        """UMaterial::Serialize: the SM3 FMaterialResource only (VER_REMOVED_SHADER_MODEL_2)."""
+        return self.fmaterial(off, end)
+
+    def tail_material_instance(self, off, end):
+        """UMaterialInstance::Serialize: nothing unless bHasStaticPermutationResource, then the
+        FMaterialResource plus FStaticParameterSet (MaterialShared.h:1643)."""
+        if off == end:
+            return end
+        off = self.fmaterial(off, end)
+        if off is None or off + 16 > end:
+            return None
+        off = self.swap_seq(off, [4, 4, 4, 4])            # BaseMaterialId
+        for element in ([4, 4, 4, 4, 4, 4, 4, 4],        # StaticSwitch: Name, Value, bOverride, GUID
+                        [4, 4] + [4] * 5 + [4] * 4,        # ComponentMask: Name, RGBA, bOverride, GUID
+                        [4, 4, 1, 4, 4, 4, 4, 4],          # Normal: Name, BYTE CompressionSettings, bOverride, GUID
+                        [4, 4, 4, 4, 4, 4, 4, 4]):         # TerrainLayerWeight: Name, Index, bOverride, GUID
+            off = self.tarray(off, lambda p, widths=element: self.swap_seq(p, widths))
+            if off is None:
+                return None
+        return off
+
+    def tail_physics_asset_instance(self, off, end):
+        """UPhysicsAssetInstance::Serialize (UnPhysAsset.cpp:1925): CollisionDisableTable,
+        TMap<FRigidBodyIndexPair (INT Indices[2]), UBOOL>."""
+        if off + 4 > end or not 0 <= self.i32(off) <= (end - off - 4) // 12:
+            return None
+        return self.tmap(off, [4, 4, 4])
 
     def tail_skeletalmesh(self, off, end):
         """USkeletalMesh::Serialize - handle RefSkeleton and LODModels for nullrhi.
@@ -1147,6 +1217,10 @@ class Converter:
     # "-JUDGMENTPKGVER=845"), fixed in the engine on 2026-09-30.
     NATIVE_TAILS = {"Polys": "tail_polys", "World": "tail_world", "Model": "tail_model",
                     "FaceFXAnimSet": "tail_facefx", "FaceFXAsset": "tail_facefx",
+                    "Material": "tail_material",
+                    "PhysicsAssetInstance": "tail_physics_asset_instance",
+                    "MaterialInstanceConstant": "tail_material_instance",
+                    "MaterialInstanceTimeVarying": "tail_material_instance",
                     "Level": "tail_level", "ShaderCache": "tail_shader_cache",
                     "SoundCue": "tail_sound_cue", "SoundNodeWave": "tail_sound_node_wave",
                     "Texture2D": "tail_texture2d",
