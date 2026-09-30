@@ -264,7 +264,7 @@ class Converter:
                 off = self.swap_seq(off, [4])            # Offset
         return self.swap_seq(off, [4])                   # NetIndex
 
-    def tags(self, names, off, end, depth=0, bool_properties=None):
+    def tags(self, names, off, end, depth=0, bool_properties=None, array_counts=None):
         """Swap a tagged-property stream. Returns the end position, or None if not one."""
         while off < end:
             idx = self.i32(off)
@@ -294,6 +294,8 @@ class Converter:
             prop_name = names[idx]
             if bool_properties is not None and type_name == "BoolProperty":
                 bool_properties[prop_name] = bool(self.src[value - 1])
+            if array_counts is not None and type_name == "ArrayProperty" and size >= 4:
+                array_counts[prop_name] = self.i32(value)
             self.swap_seq(off, [4] * 6)                  # Name, Type, Size, ArrayIndex
             if extra_name is not None:
                 self.swap_seq(off + 24, [4, 4])
@@ -549,6 +551,8 @@ class Converter:
         if off is None:
             return None
         off = self.bs_tarray_bytes(off)                  # Actions
+        if off is None:
+            return None
         off = self.swap_seq(off, ATOMIC_STRUCT["Rotator"])           # RotationOffset
         off = self.swap_seq(off, ATOMIC_STRUCT["Vector"])            # LocationOffset
         return self.swap_seq(off, [1, 1, 1, 4])          # LocationDescription, CoverType,
@@ -696,54 +700,8 @@ class Converter:
         return self.tarray(off, lambda p: self.swap_seq(p, [4]))    # ExtraReferencedObjects
 
     def tail_model(self, off, end):
-        """UModel::Serialize, UnModel.cpp:179."""
-        off = self.swap_seq(off, [4] * 7)                # Bounds: FBoxSphereBounds
-        # FBspNode (UnModel.h:97, 64 bytes in memory and on disk): Plane, iVertPool, iSurf,
-        # iVertexIndex, WORD ComponentIndex, WORD ComponentNodeIndex, ComponentElementIndex,
-        # iBack/iFront/iPlane, iCollisionBound, BYTE iZone[2], NumVertices, NodeFlags, iLeaf[2].
-        bsp_node = [4, 4, 4, 4, 4, 4, 4, 2, 2, 4, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4]
-        for element in ([4, 4, 4], [4, 4, 4], bsp_node): # Vectors, Points, Nodes
-            off = self.bulk(off, element)
-            if off is None:
-                return None
-        # Surfs is a TTransArray: its owner object, then the elements. FBspSurf (UnModel.cpp:39):
-        # Material, PolyFlags, pBase, vNormal, vTextureU, vTextureV, iBrushPoly, Actor, Plane,
-        # ShadowMapScale, LightingChannels, iLightmassIndex - 15 four-byte fields (the Plane is
-        # four), a 60-byte stride. UnModel.h's per-field size comments are stale; count fields.
-        off = self.swap_seq(off, [4])                    # TTransArray owner
-        off = self.tarray(off, lambda p: self.swap_seq(p, [4] * 15))
-        if off is None:
-            return None
-        # FVert is 16 bytes in console-cooked data (pVertex, iSide, ShadowTexCoord). The loader
-        # reads Judgment_* packages with the console layout (FVert::GetSizeForBulkSerialization
-        # returns 16 once -JUDGMENTPKGVER=845 is recognised), so the console size is kept. The
-        # old 16->24 retarget only compensated for that opt-in never firing.
-        off = self.bulk(off, [4, 4, 4, 4])               # Verts
-        if off is None:
-            return None
-        zones = self.i32(off + 4)
-        if not 0 <= zones <= 64:                         # FBspNode::MAX_ZONES
-            return None
-        off = self.swap_seq(off, [4, 4])                 # NumSharedSides, NumZones
-        for _ in range(zones):                           # FZoneProperties: actor, 2 QWORD sets, time
-            off = self.swap_seq(off, [4, 8, 8, 4])
-        off = self.swap_seq(off, [4])                    # Polys
-        for _ in range(2):                               # LeafHulls, Leaves
-            off = self.bulk(off, [4])
-            if off is None:
-                return None
-        off = self.swap_seq(off, [4, 4])                 # RootOutside, Linked
-        off = self.bulk(off, [4])                        # PortalNodes
-        if off is None:
-            return None
-        off = self.swap_seq(off, [4])                    # NumUniqueVertices
-        # FModelVertex: Position, packed TangentX/TangentZ (the Xbox struct is W,Z,Y,X so a DWORD
-        # swap yields PC X,Y,Z,W - UnRenderUtils.h:10), TexCoord, ShadowTexCoord.
-        off = self.bulk(off, [4] * 9)                    # VertexBuffer
-        if off is None:
-            return None
-        off = self.swap_seq(off, [4] * 4)                # LightingGuid
-        return self.tarray(off, lambda p: self.swap_seq(p, [4] * 9))   # LightmassSettings
+        """Bounded console UModel, including mixed-width BSP nodes and FVert records."""
+        return self.tail_geometry(off, end, "model")
 
     def tmap(self, off, pair=None):
         """UE3 TMap serialises as its Pairs TArray: INT count, then count key/value pairs."""
@@ -800,102 +758,8 @@ class Converter:
         return self.swap_seq(off, [4, 4])                # Port, Valid
 
     def tail_level(self, off, end):
-        """ULevelBase::Serialize (UnLevel.cpp:52) then ULevel::Serialize (:320).
-
-        The Actors array is a TTransArray, and TTransArray::operator<< (Array.h:2116) writes
-        **Owner first**, then the TArray. Parsing it count-first shifts everything and makes two
-        phantom fields appear before the URL -- that misread cost real time; the giveaway is that
-        Owner resolves to the Level itself and Actors[1] is the null default brush.
-        """
-        off = self.swap_seq(off, [4])                    # TTransArray Owner
-        off = self.tarray(off, lambda p: self.swap_seq(p, [4]))     # Actors
-        if off is None:
-            return None
-        off = self.furl(off)                             # URL
-        if off is None:
-            return None
-        off = self.swap_seq(off, [4])                    # Model
-        for _ in range(2):                               # ModelComponents, GameSequences
-            off = self.tarray(off, lambda p: self.swap_seq(p, [4]))
-            if off is None:
-                return None
-        for _ in range(2):                               # TextureToInstancesMap, DynamicTextureInstances
-            off = self.tmap(off)
-            if off is None:
-                return None
-        off = self.apex_cached_blob(off)                 # APEX cache; >16-byte payload unsupported
-        if off is None:
-            return None
-        off = self.bulk(off)                             # CachedPhysBSPData
-        if off is None:
-            return None
-        # CachedPhysSMDataMap, CachedPhysSMDataStore, CachedPhysPerTriSMDataMap,
-        # CachedPhysPerTriSMDataStore -- alternating TMap and TArray<BYTE>.
-        for is_map in (True, False, True, False):
-            off = self.tmap(off) if is_map else self.byte_array(off)
-            if off is None:
-                return None
-        off = self.swap_seq(off, [4, 4])                 # CachedPhysBSPDataVersion, SMDataVersion
-        off = self.tmap(off)                             # ForceStreamTextures
-        if off is None:
-            return None
-        off = self.byte_array(off)                       # CachedPhysConvexBSPData
-        if off is None:
-            return None
-        off = self.swap_seq(off, [4])                    # CachedPhysConvexBSPVersion
-        off = self.swap_seq(off, [4] * 6)                # Nav/Cover/Pylon list start+end
-        off = self.tarray(off, lambda p: self.swap_seq(p, [4] * 5))  # FGuidPair: FGuid (16) + DWORD RefId (4) = 20
-        if off is None:
-            return None
-        off = self.tarray(off, lambda p: self.swap_seq(p, [4]))  # CoverLinkRefs: TArray<ACoverLink*>
-        if off is None:
-            return None
-        off = self.tarray(off, lambda p: self.swap_seq(p, [4, 1]))  # FCoverIndexPair: DWORD ActorRefItem + BYTE SlotIdx = 5
-        if off is None:
-            return None
-        off = self.tarray(off, lambda p: self.swap_seq(p, [4]))  # CrossLevelActors: TArray<AActor*>
-        if off is None:
-            return None
-        initialized = self.i32(off)                      # FPrecomputedLightVolume::bInitialized (UBOOL)
-        off = self.swap_seq(off, [4])
-        if initialized:
-            # PrecomputedLightVolume.h / PrecomputedLightVolume.cpp:131
-            #   bInitialized (UBOOL) already consumed; now Bounds, SampleSpacing, Samples
-            off = self.swap_seq(off, [4] * 6 + [1])      # FBox Bounds (2*FVector + BYTE IsValid)
-            if off is None:
-                return None
-            off = self.swap_seq(off, [4])                # FLOAT SampleSpacing
-            if off is None:
-                return None
-            # FVolumeLightingSample (PrecomputedLightVolume.h:12, .cpp:58):
-            #   FVector Position (3*4), FLOAT Radius (4),
-            #   BYTE IndirectDirectionTheta/Phi, EnvironmentDirectionTheta/Phi (4),
-            #   FColor Indirect/Environment/AmbientRadiance (3*4), BYTE bShadowed (1) = 33
-            cnt = self.i32(off)
-            if cnt < 0 or cnt > (end - off - 4) // 33:
-                return None
-            self.swap(off, 4)
-            off += 4
-            for _ in range(cnt):
-                if off + 33 > end:
-                    return None
-                # Position + Radius are floats
-                off = self.swap_seq(off, [4, 4, 4, 4])
-                off += 2 + 2                               # thetas/phis (BYTEs)
-                off += 12                                  # 3*FColor (bytes, no swap)
-                off += 1                                   # bShadowedFromDominantLights
-        # FPrecomputedVisibilityHandler, UnLevel.cpp:191
-        off = self.swap_seq(off, [4, 4, 4, 4, 4, 4])     # BucketOriginXY(FVector2D), sizes, count
-        buckets = self.i32(off)                          # CellBuckets
-        off = self.swap_seq(off, [4])
-        if buckets:
-            return None                                  # populated visibility buckets not modelled
-        # FPrecomputedVolumeDistanceField, UnLevel.cpp:228
-        off = self.swap_seq(off, [4])                    # VolumeMaxDistance
-        off = self.swap_seq(off, ATOMIC_STRUCT["Box"])   # VolumeBox
-        off = self.swap_seq(off, [4, 4, 4])              # VolumeSizeX/Y/Z
-        # Data is TArray<FColor>. FColor is four byte channels, not a DWORD; preserve RGBA order.
-        return self.opaque_array(off, 4)                 # Data
+        """Bounded ULevelBase/ULevel layout, including populated maps and lighting."""
+        return self.tail_geometry(off, end, "level")
 
     def tail_shader_cache(self, off, end):
         """Convert the empty seek-free cache emitted into Judgment's thin P-levels.
@@ -976,6 +840,89 @@ class Converter:
             return None
         off = self.swap_seq(off, [4, 4, 4, 4])           # TextureFileCacheGuid
         return self.texture_mips(off, end)               # CachedPVRTCMips
+
+    def tail_lightmap_texture(self, off, end):
+        """ULightMapTexture2D adds a DWORD LightmapFlags after UTexture2D."""
+        if end - off < 4:
+            return None
+        stop = self.tail_texture2d(off, end - 4)
+        if stop != end - 4:
+            return None
+        return self.swap_seq(stop, [4])
+
+    def tail_geometry(self, off, end, method):
+        from native_geometry import GeometryWalker
+        from native_reader import NativeLayoutError
+        try:
+            return getattr(GeometryWalker(self, off, end), method)()
+        except NativeLayoutError:
+            return None
+
+    def tail_static_component(self, off, end):
+        return self.tail_geometry(off, end, "static_component")
+
+    def tail_brush_component(self, off, end):
+        return self.tail_geometry(off, end, "brush_component")
+
+    def tail_light_component(self, off, end):
+        return self.tail_geometry(off, end, "light_component")
+
+    def dominant_light_payload(self, off, end, names, template=False, flags=0):
+        """Dominant lights serialize their WORD shadow array BEFORE Super/UObject."""
+        from native_geometry import GeometryWalker
+        from native_reader import NativeLayoutError
+
+        def attempt():
+            try:
+                walker = GeometryWalker(self, off, end)
+                walker.fixed_array([2])
+                if flags & RF_HAS_STACK:
+                    return False
+                walker.need(24 if template else 16)  # prologue plus terminating FName
+                start = self.prologue(True, template, flags, walker.pos)
+                stop = self.tags(names, start, end)
+                if stop is None:
+                    return False
+                return GeometryWalker(self, stop, end).light_component() == end
+            except NativeLayoutError:
+                return False
+
+        return self.try_region(off, end, attempt)
+
+    def tail_body_setup(self, off, end):
+        return self.tail_geometry(off, end, "body_setup")
+
+    def tail_model_component(self, off, end):
+        return self.tail_geometry(off, end, "model_component")
+
+    def tail_static_mesh(self, off, end):
+        return self.tail_geometry(off, end, "static_mesh")
+
+    def tail_shadow_map_1d(self, off, end):
+        return self.tail_geometry(off, end, "shadow_map_1d")
+
+    def tail_decal_component(self, off, end):
+        return self.tail_geometry(off, end, "decal_component")
+
+    def tail_fractured_mesh(self, off, end):
+        return self.tail_geometry(off, end, "fractured_mesh")
+
+    def tail_texture(self, off, end):
+        return self.byte_bulk_data(off, end)
+
+    def tail_collection(self, off, end, property_name):
+        from native_geometry import GeometryWalker
+        from native_reader import NativeLayoutError
+        try:
+            return GeometryWalker(self, off, end).collection(property_name)
+        except NativeLayoutError:
+            return None
+
+    def tail_static_mesh_collection(self, off, end):
+        return self.tail_collection(off, end, "StaticMeshComponents")
+
+    def tail_static_light_collection(self, off, end):
+        return self.tail_collection(off, end, "LightComponents")
 
     def tail_class(self, off, end):
         """Convert the cooked-console v845 UField/UStruct/UState/UClass payload.
@@ -1158,14 +1105,25 @@ class Converter:
                     "SkeletalMesh": "tail_skeletalmesh",
                     "FaceFXAnimSet": "tail_facefx", "FaceFXAsset": "tail_facefx",
                     "Material": "tail_material",
+                    "DecalMaterial": "tail_material", "StaticMesh": "tail_static_mesh",
+                    "FracturedStaticMesh": "tail_fractured_mesh",
                     "PhysicsAssetInstance": "tail_physics_asset_instance",
                     "MaterialInstanceConstant": "tail_material_instance",
                     "MaterialInstanceTimeVarying": "tail_material_instance",
                     "Level": "tail_level", "ShaderCache": "tail_shader_cache",
                     "SoundCue": "tail_sound_cue", "SoundNodeWave": "tail_sound_node_wave",
-                    "Texture2D": "tail_texture2d",
-                    "RB_BodySetup": "tail_single_int", "BrushComponent": "tail_single_int",
-                    "StaticMeshComponent": "tail_single_int", "SeqAct_Interp": "tail_single_int",
+                    "Texture2D": "tail_texture2d", "ShadowMapTexture2D": "tail_texture2d",
+                    "TextureRenderTarget2D": "tail_texture", "TextureRenderTargetCube": "tail_texture",
+                    "LightMapTexture2D": "tail_lightmap_texture",
+                    "RB_BodySetup": "tail_body_setup", "BrushComponent": "tail_brush_component",
+                    "StaticMeshComponent": "tail_static_component", "SeqAct_Interp": "tail_single_int",
+                    "FracturedStaticMeshComponent": "tail_static_component",
+                    "ShadowMap1D": "tail_shadow_map_1d", "DecalComponent": "tail_decal_component",
+                    "ModelComponent": "tail_model_component",
+                    "PointLightComponent": "tail_light_component", "SpotLightComponent": "tail_light_component",
+                    "DirectionalLightComponent": "tail_light_component", "SkyLightComponent": "tail_light_component",
+                    "StaticMeshCollectionActor": "tail_static_mesh_collection",
+                    "StaticLightCollectionActor": "tail_static_light_collection",
                     "ObjectRedirector": "tail_single_int"}
     NATIVE_PAYLOADS = {"Class": "tail_class"}
 
@@ -1232,6 +1190,14 @@ class Converter:
             class_name = class_of(class_index)
             template = bool(flags & RF_CLASS_DEFAULT_OBJECT) or self.is_template(exports, outer_index)
             end = offset + size
+            if class_name in ("DominantDirectionalLightComponent", "DominantSpotLightComponent"):
+                if self.dominant_light_payload(offset, end, names, template, flags):
+                    self.stats["dominant_light_payload_converted"] += 1
+                    self.stats["converted" if sum(self.unsupported.values()) == unsupported_before else "partial"] += 1
+                else:
+                    self.unsupported["native payload: %s (%dB)" % (class_name, size)] += 1
+                    self.stats["native"] += 1
+                continue
             if class_name in self.NATIVE_PAYLOADS:
                 # UClass serializes its UField/UStruct/UState/UClass hierarchy directly after
                 # UObject's prologue; interpreting UField::Next as a property-name index is wrong.
@@ -1255,7 +1221,8 @@ class Converter:
                 def attempt(is_component=is_component, result=result):
                     start = self.prologue(is_component, template, flags, offset)
                     result["bools"] = {}
-                    result["stop"] = self.tags(names, start, end, bool_properties=result["bools"])
+                    result["arrays"] = {}
+                    result["stop"] = self.tags(names, start, end, bool_properties=result["bools"], array_counts=result["arrays"])
                     return result["stop"] is not None
 
                 if self.try_region(offset, end, attempt):
@@ -1274,6 +1241,7 @@ class Converter:
                 # Tags terminated, but native data follows. Its layout is per-class C++, so it
                 # needs an explicit model; without one the bytes stay big-endian.
                 self._skeletal_mesh_has_vertex_colors = result["bools"].get("bHasVertexColors", False)
+                self._native_array_counts = result["arrays"]
                 if self.native_tail(class_name, stop, end):
                     self.stats["native_tail_converted"] += 1
                     if sum(self.unsupported.values()) == unsupported_before:

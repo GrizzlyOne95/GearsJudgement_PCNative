@@ -2,7 +2,10 @@
 param(
     [string]$Exe = 'GearGame-JudgmentLoader-ws9-skeletalmesh-verified.exe',
     [string]$Tag = 'ws9-skeletalmesh',
-    [int]$BootSeconds = 75
+    [int]$BootSeconds = 75,
+    [string]$StreamingPackages = '',
+    [ValidateSet('pkginfo','thinmap','sp_e2_p')]
+    [string[]]$Cases = @('pkginfo','thinmap','sp_e2_p')
 )
 $ErrorActionPreference = 'Stop'
 $workspace = 'C:\Games\Gears 3 Files\Judgment Port Workspace'
@@ -14,12 +17,20 @@ if ($Tag -notmatch '^[A-Za-z0-9._-]+$') { throw 'Invalid log tag.' }
 $exePath = Join-Path $binDir $Exe
 if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) { throw "Missing loader: $exePath" }
 $common = '-user -NOHOMEDIR -JUDGMENTPKGVER=845 -forcelogflush -unattended -nopause -nosound -nullrhi'
+if ($StreamingPackages) {
+    if ($StreamingPackages -notmatch '^[A-Za-z0-9_]+(,[A-Za-z0-9_]+)*$') { throw 'Invalid streaming package list.' }
+    foreach ($package in $StreamingPackages.Split(',')) {
+        $map = Join-Path $workspace "GearGame\Content\Maps\$package.gear"
+        if (-not (Test-Path -LiteralPath $map -PathType Leaf)) { throw "Missing converted streaming map: $map" }
+    }
+    $common += " -JUDGMENTSTREAMINGPACKAGES=$StreamingPackages"
+}
 $definitions = @(
     @{ Name = 'pkginfo'; Args = "PkgInfo $common -JUDGMENTCDOWATCH" },
     @{ Name = 'thinmap'; Args = "Judgment_GearGame_P?game=geargamecontent.GearGameAID?listen $common -JUDGNATIVEBINDOK -JUDGLIFE -JUDGPRELOADTRACE" },
     @{ Name = 'sp_e2_p'; Args = "Judgment_SP_E2_P?game=geargamecontent.GearGameAID?listen $common -JUDGNATIVEBINDOK -JUDGLIFE -JUDGPRELOADTRACE" }
 )
-$results = foreach ($definition in $definitions) {
+$results = foreach ($definition in $definitions | Where-Object { $_.Name -in $Cases }) {
     $log = Join-Path $workspace "GearGame\Logs\regress-$Tag-$($definition.Name).log"
     if (Test-Path -LiteralPath $log) { throw "Refusing to overwrite existing evidence: $log" }
     $process = Start-Process -FilePath $exePath -ArgumentList "$($definition.Args) -ABSLOG=`"$log`"" -WorkingDirectory $binDir -WindowStyle Hidden -PassThru
@@ -36,12 +47,17 @@ $results = foreach ($definition in $definitions) {
     $meshNames = @('COG_Barrick', 'COG_Gus_Summer_CamSkel', 'COG_Clayton_Carmine')
     $meshLoads = @($leaves | Where-Object { $_.Groups[2].Value -in $meshNames }).Count
     $packedLoads = [regex]::Matches($text, '\[JUDGMESH\] unpacked vertices=').Count
+    $streamedLoads = @{}
+    foreach ($package in $StreamingPackages.Split(',') | Where-Object { $_ }) {
+        $streamedLoads[$package] = [regex]::Matches($text, ('\[JUDGPRELOAD\] leave .* pkg=' + [regex]::Escape($package) + '(?:\s|$)')).Count
+    }
     if ($definition.Name -eq 'pkginfo') {
         $result = if (-not $timedOut -and $process.ExitCode -eq 0 -and $text.Contains('Success - 0 error(s)')) { 'PASS' } else { 'FAIL' }
     } elseif ($definition.Name -eq 'thinmap') {
         $result = if ($timedOut -and $possessed -and -not $critical -and $mismatches -eq 0) { 'PASS' } else { 'FAIL' }
     } else {
         $meshPass = $leaves.Count -ge 1402 -and $mismatches -eq 0 -and $meshLoads -eq 3 -and $packedLoads -eq 4 -and $possessed
+        foreach ($package in $streamedLoads.Keys) { $meshPass = $meshPass -and $streamedLoads[$package] -gt 0 }
         $result = if (-not $meshPass) { 'FAIL' } elseif ($critical) { 'BLOCKED_AFTER_BOOT' } elseif ($timedOut) { 'PASS' } else { 'FAIL' }
     }
     $row = [pscustomobject]@{
@@ -49,6 +65,7 @@ $results = foreach ($definition in $definitions) {
         SizeMismatches = $mismatches; MeshLoads = $meshLoads; PackedLoads = $packedLoads
         Possessed = $possessed; TimedOut = $timedOut; ExitCode = $process.ExitCode
         Critical = $critical; Log = $log
+        StreamingLoads = $streamedLoads
     }
     $row | ConvertTo-Json -Compress | Write-Host
     $row

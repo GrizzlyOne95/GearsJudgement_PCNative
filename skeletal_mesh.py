@@ -6,73 +6,13 @@ bytes were reversed by the cooker; CPU vertex influence bytes were not.
 import struct
 
 
-class MeshLayoutError(ValueError):
-    pass
+from native_reader import BoundedNativeWalker, NativeLayoutError as MeshLayoutError
 
 
-class SkeletalMeshWalker:
+class SkeletalMeshWalker(BoundedNativeWalker):
     def __init__(self, converter, start, end, has_vertex_colors=False):
-        if not 0 <= start <= end <= len(converter.src):
-            raise MeshLayoutError("mesh export bounds are outside the package")
-        self.converter = converter
-        self.pos = start
-        self.end = end
+        super().__init__(converter, start, end)
         self.has_vertex_colors = has_vertex_colors
-
-    def need(self, size):
-        if size < 0 or self.pos < 0 or self.pos + size > self.end:
-            raise MeshLayoutError(f"mesh field at {self.pos} overruns {self.end}")
-
-    def fields(self, widths):
-        self.need(sum(widths))
-        self.pos = self.converter.swap_seq(self.pos, widths)
-
-    def integer(self):
-        self.need(4)
-        result = self.converter.i32(self.pos)
-        self.fields([4])
-        return result
-
-    def byte(self):
-        self.need(1)
-        result = self.converter.src[self.pos]
-        self.pos += 1
-        return result
-
-    def array(self, element, min_width=1):
-        count = self.integer()
-        if count < 0 or count > (self.end - self.pos) // min_width:
-            raise MeshLayoutError(f"invalid mesh array count {count} at {self.pos - 4}")
-        for _ in range(count):
-            element()
-        return count
-
-    def fixed_array(self, widths):
-        return self.array(lambda: self.fields(widths), sum(widths))
-
-    def bulk(self, widths):
-        element_size = self.integer()
-        if element_size != sum(widths):
-            raise MeshLayoutError(f"mesh bulk width {element_size}, expected {sum(widths)} at {self.pos - 4}")
-        return self.fixed_array(widths)
-
-    def fname(self):
-        self.need(8)
-        if not self.converter.valid_fname(self.pos):
-            raise MeshLayoutError("invalid mesh FName")
-        self.fields([4, 4])
-
-    def object_ref(self):
-        if not self.converter.valid_object_ref(self.integer()):
-            raise MeshLayoutError("invalid mesh object reference")
-
-    def string(self):
-        length = self.integer()
-        width, count = (2, -length) if length < 0 else (1, length)
-        self.need(count * width)
-        if count and any(self.converter.src[self.pos + (count - 1) * width:self.pos + count * width]):
-            raise MeshLayoutError("unterminated mesh string")
-        self.fields([width] * count)
 
     def bone(self):
         self.fname()

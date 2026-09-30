@@ -4,6 +4,15 @@ import unittest
 from be2le import Converter
 
 
+class CoverSlotFailureTests(unittest.TestCase):
+    def test_invalid_actions_count_rejects_candidate_and_rolls_back(self):
+        source = struct.pack(">7i", 0, 0, 0, 0, 0, 0, -1)
+        converter = Converter(source)
+        self.assertIsNone(converter.binary_struct("CoverSlot", 0))
+        self.assertEqual(bytes(converter.out), source)
+        self.assertFalse(converter.stats)
+
+
 class EnumBytePropertyTests(unittest.TestCase):
     NAMES = ["None", "Id", "ByteProperty", "EGearSoundId", "GSID_Foley"]
 
