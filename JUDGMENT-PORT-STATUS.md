@@ -1,5 +1,48 @@
 # Judgment native-port - build-tree status
 
+## Session XX (2026-09-30): three retail streaming maps load; BSP stride fixed
+
+All work stays in this isolated `judgment/port-workspace` copy and converter branch
+`judgment/skeletalmesh-20260930`. Builds never touch shared campaign source.
+
+- Fully converted exports: SP_E2_P **1,433/1,433**, SP_E2_01 **4,919/4,919**,
+  SP_E2_02 **3,054/3,054**, SP_E2_W **61/61**, zero unsupported/partial.
+- Native runtime: **8,571 exact-size loads**, zero size mismatches. Three streaming
+  maps deserialize/post-load; Baird is possessed and the world ticks. Next explicit
+  blocker: missing `SP_E2_01_S` gameplay/navigation package.
+- Bounded native serializers now cover static/fractured geometry, BSP, component
+  LODs, lightmaps, decals, convex cache containers, collections and populated Level
+  lighting/visibility. Native FColor values swap as DWORDs. Dominant lights require
+  a WORD shadow-map array before the normal UObject prologue.
+- Retail names require `-JUDGMENTSTREAMINGPACKAGES=SP_E2_01,SP_E2_02,SP_E2_W`,
+  in addition to v845 and loader opt-in. PC content keeps its normal layout.
+- Populated BSP exposed a memory-stride bug: console FVert 16B bulk data was being
+  packed into PC FVert 24B arrays. Explicit per-record expansion clears the
+  `UModelComponent::BuildRenderData` assertion. Preload telemetry includes package
+  names; independent manifest/topology checks match all loaded records.
+- PkgInfo and thin-map regression pass. 50 converter tests pass; previous packed
+  skeletal-position telemetry remains valid. Tests use `-NOHOMEDIR` in this copy.
+- Headless loading only. Missing mip bulk data warnings remain; visible rendering,
+  external texture caches, codecs, collision and campaign gameplay need validation.
+
+Loader: `Binaries\Win32\GearGame-JudgmentLoader-ws10-streaminggeometry-verts.exe`,
+SHA-256 `9710D48EE86D3F39C8BF41EF96B2D83CA34BE38212F76CFDD75E60D59FF17A82`.
+Private incremental patch: `patches\judgment-port\0010-ws-streaming-geometry.patch`
+(apply after 0009; reverse check passes with `--ignore-whitespace`).
+Staged maps only under this workspace's `GearGame\Content\Maps`:
+`Judgment_SP_E2_P.gear`, `SP_E2_01.gear`, `SP_E2_02.gear`, `SP_E2_W.gear`.
+Prior map-stage backups and original checkpoint artifacts are retained in scratch.
+
+See converter `STREAMING-GEOMETRY-CHECKPOINT.md` for exact artifact hashes,
+reproduction/recovery commands and retained regression logs. Final runtime evidence:
+`GearGame\Logs\regress-ws10-streaminggeometry-e2w-sp_e2_p.log` and results JSON.
+`_judgment-scratch\e2-surface\geometry-e2w-20260930.validation.json` independently
+checks the four retained archives, BSP references and all 8,571 native loads.
+
+Next package SP_E2_01_S: 560 exports; 438 fully converted, 116 partial, six native
+tails unmodelled. CoverSlot arrays, ActorReference/RouteList, NavigationMeshBase
+and Pylon need explicit models. Its partial output is not staged.
+
 ## Session XIX (2026-09-30): skeletal meshes complete; SP_E2_P boots and possesses Baird
 
 Continued from converter `3baf313` on separate branch `judgment/skeletalmesh-20260930`.
