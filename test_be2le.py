@@ -41,6 +41,60 @@ class EnumBytePropertyTests(unittest.TestCase):
         self.assertEqual(converter.unsupported["ByteProperty enum value: bad FName"], 1)
 
 
+class MaterialTailTests(unittest.TestCase):
+    # Helmet_MASTER's FMaterial: no errors, empty dependency map, max length 1, GUID, 1 texcoord,
+    # 4 textures, 5 UBOOLs + UsingTransforms, 1 texture lookup, dropped-fallback DWORD.
+    FMATERIAL = [0, 0, 1, 11, 22, 33, 44, 1, 4, -286, -285, -278, -279,
+                 0, 0, 0, 0, 0, 0, 1, 0, 0, 1065353216, 1065353216, 0]
+
+    def pack(self, fmt, ints):
+        return struct.pack(fmt + "%di" % len(ints), *ints)
+
+    def test_material_resource_converts_exactly(self):
+        source = self.pack(">", self.FMATERIAL)
+        converter = Converter(source)
+
+        self.assertTrue(converter.native_tail("Material", 0, len(source)))
+        self.assertEqual(bytes(converter.out), self.pack("<", self.FMATERIAL))
+
+    def test_material_instance_static_parameters_convert(self):
+        static = [5, 6, 7, 8,                       # BaseMaterialId
+                  1, 451, 0, 1, 1, 9, 10, 11, 12,   # one static switch
+                  0, 0, 0]                          # no masks, normals, terrain weights
+        source = self.pack(">", self.FMATERIAL + static)
+        converter = Converter(source)
+
+        self.assertTrue(converter.native_tail("MaterialInstanceConstant", 0, len(source)))
+        self.assertEqual(bytes(converter.out), self.pack("<", self.FMATERIAL + static))
+
+    def test_material_instance_without_static_permutation_is_empty(self):
+        converter = Converter(b"")
+        self.assertTrue(converter.native_tail("MaterialInstanceConstant", 0, 0))
+
+    def test_material_with_trailing_unknown_data_fails_closed(self):
+        source = self.pack(">", self.FMATERIAL + [7])
+        converter = Converter(source)
+
+        self.assertFalse(converter.native_tail("Material", 0, len(source)))
+        self.assertEqual(bytes(converter.out), source)
+
+
+class PopulatedShaderCacheTests(unittest.TestCase):
+    def test_populated_xbox_cache_swaps_priority_and_keeps_microcode(self):
+        body = bytes(range(40))
+        source = struct.pack(">iB", 10, 2) + body
+        converter = Converter(source)
+
+        self.assertTrue(converter.native_tail("ShaderCache", 0, len(source)))
+        self.assertEqual(bytes(converter.out), struct.pack("<iB", 10, 2) + body)
+
+    def test_populated_non_xbox_cache_fails_closed(self):
+        source = struct.pack(">iB", 10, 1) + bytes(40)
+        converter = Converter(source)
+
+        self.assertFalse(converter.native_tail("ShaderCache", 0, len(source)))
+
+
 class FaceFXTailTests(unittest.TestCase):
     def archive(self, sdk=1740, file_format=0):
         return b"FACB" + struct.pack(">II", sdk, file_format) + bytes(range(9))
