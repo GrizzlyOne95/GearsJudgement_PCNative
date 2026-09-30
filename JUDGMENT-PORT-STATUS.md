@@ -1,5 +1,106 @@
 # Judgment native-port - build-tree status
 
+## Session XVIII (2026-09-30): isolated workspace; 37 MB UClass read and enum-byte blockers closed
+
+### Isolation (read first)
+
+`gears_of_war_3_2011-09-14\Development\Src` is now the **Gears 3 campaign / Steam co-op source** -
+the shipping `GearGame-Campaign-Steam-coopfix-*` executables are built from it. Judgment work must
+never build or edit there. All Judgment work now happens in:
+
+- `C:\Games\Gears 3 Files\Judgment Port Workspace` - git worktree, branch `judgment/port-workspace`,
+  plus an untracked full copy of the build tree. `Development\Src` was seeded from
+  `_Backups\src-judgment-20260919` (the Session XIV source; `Development\Src.judgment-20260919`
+  in the shared tree has partially regenerated headers - do not use it). Campaign object files were
+  not copied, so the first build was clean.
+- Tooling repo `GearsJudgement_PCNative`, branch `judgment/workspace-isolation`: every script that
+  hard-coded the shared tree (`apply-deltas.py`, `fix_member_deltas.py`, `sweep_v3.py`,
+  `verify-thin-map.ps1`, `build-judgment-loader.ps1`, `xg-tail-oracle\build.ps1`) now points at the
+  workspace. Build with the working directory at `Development\Src`:
+  `scripts\build-judgment-loader.ps1 -SourceRoot "<workspace>" -VersionTag <tag>`.
+- The newest converter is `C:\Games\NostalgiaBundle\projects\judgment-native` (not under git; it is
+  ahead of the tooling repo's `content-converter`).
+
+### Blocker 1 - 37 MB `ReadFile` during `GearPawn_CCarmine` (Session XVI/XVII) - ROOT-CAUSED, FIXED
+
+`IsPackageCookedForConsole()` (`UnScriptPatcher.h`) opts `Judgment_*` packages into the console
+cooked layout via `ParseParam(appCmdLine(), "JUDGMENTPKGVER")`. `ParseParam` only matches a flag
+followed by whitespace/end (`UnMisc.cpp:2322`); every documented launch passes
+`-JUDGMENTPKGVER=845`, so the opt-in **never fired**. `UStruct::Serialize` therefore read the PC
+editor layout (+ScriptText/CppText/Line/TextPos) over the stripped class and took
+`ScriptStorageSize` from bytes 172431..172434 = `0x02360000` = 37,093,376. The reader copied the 621
+buffered bytes up to its 1 KB boundary (172435 -> 173056) and requested the remaining
+**37,092,755** - the exact logged length. The class bytes and `tail_class` were always correct; the
+Session XVI "UClass overran by 503 bytes" reading and the XVII debugger plan are superseded.
+
+Fix: accept `-JUDGMENTPKGVER=<n>` via `Parse()` in that one gate.
+
+Follow-up (same day, user-approved): the three other gates with the same broken
+`ParseParam(..., "JUDGMENTPKGVER")` - rooted linkers (`UnLinker.cpp:854`), forced sync tables
+(`:884`) and plain file readers (`:1100`) - had **never been active in any logged run**, so the
+"Exonerated mechanisms" v21/v22 results were tested with them off. All four gates now call
+`JudgmentPackageVersionOptIn()` (`UnScriptPatcher.h`). Turning them on exposed:
+
+- a latent crash: `JUDGMENT_LINKER_ROOTED` passed `*Filename` (one TCHAR) to `%s`; fixed.
+- the converter's Session XII "FVert empty-bulk 16 -> 24 retarget" was compensating for the
+  console layout being off. `FVert::GetSizeForBulkSerialization` returns the console size 16
+  under the opt-in, so `tail_model` now keeps 16 and walks Verts as a normal `[4,4,4,4]` bulk.
+  The thin map's pinned hash therefore changes (new stage `E7658EA5...`).
+
+Regression runner: `GearsJudgement_PCNative\scripts\run-judgment-regressions.ps1 -Exe <loader>`
+(PkgInfo clean exit / converted thin-map boot + possession / SP_E2_P exact-size preloads).
+`GearGame-JudgmentLoader-ws4-optin-all.exe` (`0D4AF80E...`) passes all three.
+
+### Blocker 2 - `Bad name index -553451520/1773` in `GSG_COG_Barrick` - ROOT-CAUSED, FIXED (converter)
+
+`be2le.py` mapped `ByteProperty` to an empty width list, so an enum-backed byte tag (Size 8, value
+is an FName) was skipped **silently** - left big-endian and not counted as unsupported. Only byte
+*arrays* had been fixed in Session XIV. SP_E2_P had 840 such values (GearSoundGroup `Id`s,
+Texture2D/SoundCue enums, ...). Now swapped explicitly, fail-closed on an out-of-range FName;
+3 new tests (24/24 pass).
+
+The 2026-09-05 blind 4-byte-swap handlers `tail_skeletalmesh` / `tail_facefx` were unregistered:
+they bypassed the fail-closed policy and were motivated by blocker 1, which they could not fix.
+
+### Result
+
+- Converter: `SP_E2_P.enumbyte.le.xxx` SHA256 `D681F5FC...A166FB`: 1,410/1,433 fully converted,
+  0 partial, 23 unmodelled tails. Diff vs the old `48B1CAF5` stage = the structured `Polys` model
+  plus 840 enum words, all now valid name indices.
+- Loader `Binaries\Win32\GearGame-JudgmentLoader-ws2-consolelayout.exe`
+  (SHA256 `CBEBCEC3...8B3559`): `Judgment_SP_E2_P` loads 62 exports with exact
+  `consumed == SerialSize` (was 0 before blocker 1, 27 before blocker 2).
+- Next blocker: export 38 `COG_Gus_Summer_FaceFX_Efforts` (`FaceFXAnimSet`, 177,135 B) - an
+  unmodelled native tail, so it fails closed exactly as intended (`Array.h:756 ArrayNum >= 0`).
+  FaceFX payloads are FaceFX's own endian-specific archive, so this needs a real format model.
+- New diagnostics: `-JUDGPRELOADTRACE` logs `[JUDGPRELOAD] enter/leave` with export index, class,
+  offset, size and consumed bytes for `Judgment_*` packages; the file-reader failure now reports
+  `Pos`/`Size`. Engine changes: `patches\judgment-port\0007-ws-consolelayout-optin-preloadtrace.patch`.
+
+Repro:
+
+```
+GearGame-JudgmentLoader-ws2-consolelayout.exe Judgment_SP_E2_P?game=geargamecontent.GearGameAID?listen
+  -user -JUDGMENTPKGVER=845 -JUDGNATIVEBINDOK -JUDGLIFE -JUDGPRELOADTRACE -forcelogflush
+  -unattended -nopause -nosound -nullrhi -ABSLOG=<log>
+```
+
+## Session XIV (2026-08-26): first campaign package is 96.2% structurally converted
+
+- `SP_E2_P` was decompressed and measured as the first full campaign package: 1,433 exports,
+  291 imports, 11.1 MB serialized payload.
+- The converter now rewrites `SoundNodeWave` bulk headers without touching Xbox XMA bytes. This
+  is an explicit `-nosound` structural-load stage; Ogg transcoding remains future work.
+- Source-backed empty native tails and primitive/enum/string arrays raised the result to
+  **1,378/1,433 fully converted exports**, zero partial property exports.
+- Independent package-probe validation: exact import/export table ends, zero invalid references,
+  and 254/254 SoundNodeWave payloads with valid tagged/bulk framing.
+- Thin-map regression remains hash-identical and its converter/staged-map/schema inputs are now
+  verified by a permanent script. The temporary build batch was replaced by a permanent loader
+  build script; it reproduced the 59,447,808-byte executable successfully.
+- Remaining `SP_E2_P` frontier: 24 textures and 31 other native payload/tail exports, led by
+  Model/Polys/Level, material/physics, FaceFX, meshes, populated ShaderCache and four Class exports.
+
 <!-- NEXT SESSION: start at "Session V" below (CameraAnim blocker CLOSED -
 dup FPointer vtable slots stripped from 10 classes). PkgInfo now exits clean;
 next frontier = live gameplay instantiation / map load against the remaining
@@ -1038,3 +1139,50 @@ chapter-data inspection (EGearCampaignMemorySlot consumers).
 Qualified-name GameInfo experiment + GearCampaignChapterData consumption trace
 to find the authentic Kilo Squad pawn-selection function (Task C), then input
 oracle (Task D) on whichever pawn is correctly possessed.
+
+## Session XII (2026-08-25): CONVERTED JUDGMENT `GearGame_P` BOOTS NATIVELY
+
+The first whole-map BE845 -> LE845 platform conversion now passes the direct loader. This is the
+retail Judgment `GearGame_P.xxx`, not the 2011 Gears 3 `GearGame_P.gear` control.
+
+Converter corrections:
+
+1. The final 17-byte `SeekFreeShaderCache` tail is an empty cache header, not shader microcode:
+   priority INT 10, Xbox platform BYTE 2, and three zero counts. The converter accepts only that
+   exact empty shape, swaps its integers and retargets the platform to this runtime's
+   `SP_PCD3D_SM3` value 0. Populated Xbox caches still fail closed.
+2. The first native load exposed an empty `FVert` BulkSerialize header with console element size
+   16. Win32 validates PC `FVert` size 24 even when count is zero, so the converter retargets only
+   the empty header. Populated width-changing arrays remain unsupported.
+
+Fresh executable built from this source tree:
+
+```text
+Binaries\Win32\GearGame-JudgmentLoader-v60-nativecontent.exe
+SHA256 AB21F561F71B72201529A89A2E89D8463975307A103ED2058858AA399AA1CEA3
+```
+
+Staged converted map:
+
+```text
+GearGame\Content\Maps\Judgment_GearGame_P.gear
+SHA256 0849E7EA6E0DD73DDCECE8DB787A4B5B591C75E9EA1BF036ECA19389590D5353
+```
+
+Verified on the fresh v60 build (`Judgment_GearGame_P.v60-nativecontent-boot.log`):
+
+```text
+JUDGMENT_LOADER_READER ... Judgment_GearGame_P.gear size=7575
+[JUDGLIFE] pc-spawned       GearPC_AID_0
+[JUDGLIFE] map-loaded       GearEngine_0
+[JUDGLIFE] first-render     GearGameViewportClient_0
+[JUDGLIFE] world-first-tick TheWorld
+[JUDGLIFE] pawn-check       GearPawn_COGBairdJack_0
+[JUDGLIFE] pawn-owner-pc    GearPC_AID_0
+```
+
+The next real campaign fixture is `SP_00_Museum_Base_Exit_S`: 79,775 bytes decompressed,
+58 exports. Current conversion is 41 fully converted, 16 partial CoverLinks (binary immutable
+`CoverSlot` arrays), and one unmodelled populated ULevel tail. Its empty SoundCue editor map is
+now modelled. Exact next blockers: `FCoverSlot` binary serialization, then the populated Level
+tail. The converter now bounds speculative array counts and reports partial exports honestly.
