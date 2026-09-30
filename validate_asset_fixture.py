@@ -1,10 +1,10 @@
 """Audit Baird's extracted package, exact native loads and rendered evidence."""
 import hashlib
+import argparse
 import json
 from pathlib import Path
 import re
 import struct
-import sys
 
 from be2le import load_array_types
 from extract_asset_package import extract
@@ -14,15 +14,25 @@ FIXTURES = Path(r"C:\Games\_judgment-scratch\character-surface")
 ARRAYS = Path(r"C:\Games\_judgment-scratch\array-types-v845.json")
 
 
-def validate(log_path):
+def validate(log_path, artifact=None, pc_manifest_path=None, screenshot=None, texture_fixtures=None, resolve_imports=False):
     source = (FIXTURES / "GearGame.xxx.unc").read_bytes()
     manifest = json.loads((FIXTURES / "GearGame.xxx.json").read_text())
-    artifact = FIXTURES / "COG_Baird_Jack.asset-v2.le.xxx"
+    artifact = Path(artifact) if artifact else FIXTURES / "COG_Baird_Jack.asset-v2.le.xxx"
     output = artifact.read_bytes()
     regenerated, report = extract(source, manifest, "COG_Baird_Jack", load_array_types(ARRAYS)[0],
-                                  json.loads(ARRAYS.read_text()))
+                                  json.loads(ARRAYS.read_text()), resolve_imports)
+    if texture_fixtures:
+        from replace_texture_pixels import Package as TexturePackage, replace
+        texture_package = TexturePackage(regenerated)
+        fixtures = {e.name: (Path(texture_fixtures) / (e.name + ".upk")).read_bytes()
+                    for e in texture_package.exports if texture_package.class_name(e) == "Texture2D"}
+        regenerated, texture_report = replace(regenerated, fixtures)
+        report["texture_recovery"] = texture_report
+        report["sha256"] = texture_report["output_sha256"]
+        report["physical_offsets_preserved"] = False
+        report["non_texture_physical_offsets_preserved"] = True
     assert regenerated == output
-    pc_manifest_path = FIXTURES / "COG_Baird_Jack.asset-v2.manifest.json"
+    pc_manifest_path = Path(pc_manifest_path) if pc_manifest_path else FIXTURES / "COG_Baird_Jack.asset-v2.manifest.json"
     pc_manifest = json.loads(pc_manifest_path.read_text())
     layout = pc_manifest["layout_validation"]
     assert layout["invalid_name_references"] == layout["invalid_resource_or_serial_references"] == 0
@@ -73,8 +83,23 @@ def validate(log_path):
         assert len(presents) >= 2 and int(presents[-1][1]) > int(presents[0][1])
         report["presented_frames_at_last_report"] = int(presents[-1][1])
         report["last_present_seconds"] = float(presents[-1][0])
+    if resolve_imports and "[JUDGPROTO] player-material" in text:
+        materials = re.findall(r"\[JUDGPROTO\] player-material slot=(\d+) material=(\S+) base=(\S+) parent=(\S+) static=(\d+)", text)
+        expected = {"0": "ALL_SoldierShaders.Rift.Materials.Master.M_Soldier_SkinShader",
+                    "1": "ALL_SoldierShaders.Rift.Materials.Master.M_Eye_MASTER",
+                    "2": "Hair.Materials.M_Hair_Master_Smoke"}
+        assert len(materials) == 3 and {row[0]: row[2] for row in materials} == expected
+        used = re.findall(r"\[JUDGPROTO\] player-material-texture slot=(\d+) texture=(\S+) size=(\d+)x(\d+) mips=(\d+)", text)
+        for entry in pc_manifest["exports"]:
+            if entry["class_name"] == "Texture2D":
+                analysis = entry["payload_analysis"]
+                base = analysis["mips"][0]
+                want = ("COG_Baird_Jack.Textures." + entry["object_name"], str(base["size_x"]), str(base["size_y"]), str(len(analysis["mips"])))
+                assert any(row[1:] == want for row in used)
+        report["player_material_bases"] = expected
+        report["all_six_recovered_textures_used_by_player"] = True
     if "[JUDGPROTO] requesting rendered screenshot" in text:
-        shot = Path(r"C:\Games\Gears 3 Files\Judgment Port Workspace\GearGame\ScreenShots\ScreenShot00000.bmp")
+        shot = Path(screenshot) if screenshot else Path(r"C:\Games\Gears 3 Files\Judgment Port Workspace\GearGame\ScreenShots\ScreenShot00000.bmp")
         bitmap = shot.read_bytes()
         assert bitmap[:2] == b"BM" and struct.unpack_from("<2i", bitmap, 18) == (1280, 720)
         # Verify real pixel variation; visual inspection remains a separate check.
@@ -84,14 +109,24 @@ def validate(log_path):
         report["screenshot"] = str(shot)
         report["screenshot_sha256"] = hashlib.sha256(bitmap).hexdigest()
         report["screenshot_distinct_colors"] = len(colors)
-    report["limits"] = "Visible character/geometry only; Xbox texture pixels, lighting, input, collision, cover, AI and audio remain unverified or incorrect."
+    report["limits"] = ("Baird's six textures recovered; environment textures, lighting, input, collision, cover, AI and audio remain unverified or incorrect."
+                        if texture_fixtures else "Visible character/geometry only; Xbox texture pixels, lighting, input, collision, cover, AI and audio remain unverified or incorrect.")
     return report
 
 
 if __name__ == "__main__":
-    destination = Path(sys.argv[1])
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("report", type=Path)
+    parser.add_argument("log", type=Path)
+    parser.add_argument("--artifact", type=Path)
+    parser.add_argument("--manifest", type=Path)
+    parser.add_argument("--screenshot", type=Path)
+    parser.add_argument("--texture-fixtures", type=Path)
+    parser.add_argument("--resolve-imports", action="store_true")
+    args = parser.parse_args()
+    destination = args.report
     if destination.exists():
         raise SystemExit("refusing to replace retained validation evidence")
-    report = validate(sys.argv[2])
+    report = validate(args.log, args.artifact, args.manifest, args.screenshot, args.texture_fixtures, args.resolve_imports)
     destination.write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))

@@ -43,7 +43,7 @@ def summary(version, flags, guid, names, exports, imports, net_count, offsets):
     return result
 
 
-def extract(source, manifest, root_name, array_types, array_owners=None):
+def extract(source, manifest, root_name, array_types, array_owners=None, resolve_imports=False):
     if source[:4] != b"\x9e\x2a\x83\xc1" or manifest["package_version"] != 845:
         raise ValueError("requires a decompressed big-endian Judgment v845 archive")
     exports, imports = manifest["exports"], manifest["imports"]
@@ -177,14 +177,20 @@ def extract(source, manifest, root_name, array_types, array_owners=None):
     guid = struct.pack("<4I", *records[root["index"]][1])
     net_count = max(root["generation_net_object_counts"] or [0])
     fields = converter.header_ints()
-    header_size = len(summary(845, fields[0] & 0xFFFFFFFF, guid, len(names), len(emitted),
+    package_flags = fields[0] & 0xFFFFFFFF
+    if resolve_imports:
+        # The startup cook preloads all of its ownership groups together. An
+        # extracted group instead imports its external dependencies, including
+        # nested material parents. Permit the normal PC linker to load them.
+        package_flags &= ~0x00800000  # PKG_RequireImportsAlreadyLoaded
+    header_size = len(summary(845, package_flags, guid, len(names), len(emitted),
                               len(new_imports), net_count, (0, 0, 0, 0, 0)))
     offsets = [header_size]
     offsets.append(offsets[-1] + len(name_bytes))
     offsets.append(offsets[-1] + len(import_bytes))
     offsets.append(offsets[-1] + len(export_bytes))
     offsets.append(offsets[-1] + len(depends_bytes))
-    header = summary(845, fields[0] & 0xFFFFFFFF, guid, len(names), len(emitted), len(new_imports), net_count, offsets)
+    header = summary(845, package_flags, guid, len(names), len(emitted), len(new_imports), net_count, offsets)
     old_header_end = struct.unpack_from(">i", source, 8)[0]
     if offsets[-1] > old_header_end or any(e["serial_offset"] < old_header_end for e in emitted):
         raise ValueError("compact tables do not fit before the retained payloads")
@@ -199,6 +205,9 @@ def extract(source, manifest, root_name, array_types, array_owners=None):
               "physical_offsets_preserved": True,
               "external_dependencies": [names[key[3][0]] for key in new_imports if key[2] == 0],
               "sha256": hashlib.sha256(converter.out).hexdigest()}
+    if resolve_imports:
+        report["resolve_external_imports"] = True
+        report["package_flags"] = "0x%08X" % package_flags
     return bytes(converter.out), report
 
 
@@ -223,13 +232,15 @@ def main():
     parser.add_argument("root")
     parser.add_argument("output", type=Path)
     parser.add_argument("array_types", type=Path)
+    parser.add_argument("--resolve-imports", action="store_true",
+                        help="permit PC dependency loading for the extracted ownership group")
     args = parser.parse_args()
     report_path = args.output.with_suffix(".extraction.json")
     if args.output.exists() or report_path.exists():
         raise SystemExit("refusing to overwrite retained evidence")
     output, report = extract(args.source.read_bytes(), json.loads(args.manifest.read_text()),
                              args.root, load_array_types(args.array_types)[0],
-                             json.loads(args.array_types.read_text()))
+                             json.loads(args.array_types.read_text()), args.resolve_imports)
     args.output.write_bytes(output)
     report_path.write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))

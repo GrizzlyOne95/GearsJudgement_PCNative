@@ -1,11 +1,12 @@
 # Judgment-only tests. NOHOMEDIR keeps configuration and save writes in this copy.
 param(
-    [string]$Exe = 'GearGame-JudgmentLoader-ws16-render-prototype-v2.exe',
-    [string]$Tag = ('ws16-' + (Get-Date -Format 'yyyyMMdd-HHmmssfff')),
+    [string]$Exe = 'GearGame-JudgmentLoader-ws17-material-trace.exe',
+    [string]$Tag = ('ws17-' + (Get-Date -Format 'yyyyMMdd-HHmmssfff')),
     [int]$BootSeconds = 75,
     [switch]$PrototypeTrace = $true,
     [ValidateSet('NullRHI','D3D9')] [string]$Renderer = 'NullRHI',
     [switch]$CaptureScreenshot,
+    [switch]$MaterialTrace,
     [switch]$RequirePlayerMesh = $true,
     [ValidateRange(0,120)] [int]$SampleStackAtSeconds = 0,
     [string]$DebuggerExe,
@@ -31,6 +32,7 @@ if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) { throw "Missing load
 $common = '-user -NOHOMEDIR -JUDGMENTPKGVER=845 -forcelogflush -unattended -nopause -nosound -NoTextureStreaming'
 $common += if ($Renderer -eq 'NullRHI') { ' -nullrhi' } else { ' -d3d9 -windowed -ResX=1280 -ResY=720' }
 if ($PrototypeTrace) { $common += ' -JUDGPROTOTRACE' }
+if ($MaterialTrace) { $common += ' -JUDGMATERIALTRACE' }
 if ($CaptureScreenshot -and $Renderer -eq 'D3D9') { $common += ' -JUDGSHOT' }
 $convertedPackages = (@($StreamingPackages, $AssetPackages) | Where-Object { $_ }) -join ','
 if ($convertedPackages) {

@@ -104,12 +104,14 @@ command walks the complete physical allocation, accepts only blocks mapping insi
 surface, and fails on duplicate or missing logical blocks. Packed mip tails require their
 source-defined per-level offsets and are not yet converted by this command.
 
-`--convert-texture-fixture` takes a **zero-based** export index. It is deliberately limited to an
-uncompressed big-endian Judgment v845 `PF_DXT1` `Texture2D` with empty SourceArt/PVRTC data and at
-least three mips before its packed tail. The command reads external bulk from the supplied TFC,
-decompresses LZX as needed, detiles and endian-corrects the first three Xbox allocations, and
-emits their exact linear BC1 byte counts as uncompressed inline v828 bulk. It writes a compact
-package with 17 remapped names, the two imports for `Engine.Texture2D`, and one root texture export.
+`--convert-texture-fixture` takes a **zero-based** export index and requires an uncompressed
+big-endian Judgment v845 `Texture2D` with empty SourceArt/PVRTC data and at least three resident
+mips before its packed tail. Supported formats are DXT1, DXT3, DXT5, BC5, G8, A8R8G8B8 and V8U8.
+The command reads external bulk from the supplied TFC, decompresses LZX as needed, detiles and
+endian-corrects the first three resident Xbox allocations, and emits exact linear PC byte counts
+as uncompressed inline v828 bulk. It writes a compact package with remapped names, two imports
+for `Engine.Texture2D`, and one root texture export. A cache-directory argument resolves each
+texture's own `TextureFileCacheName`, including `CharTextures.tfc`.
 
 For this first fixture, `TextureFileCacheName` and `FirstResourceMemMip` are removed because the
 output is fully inline, and `MipTailBaseIdx` is changed from 3 to 2 because mip 2 is the final
@@ -117,14 +119,23 @@ emitted level. The converter refuses an existing output, verifies every table/re
 positive bulk offset after writing, requires the payload to close at the export boundary, and
 byte-compares all emitted mip data against its in-memory detiled source.
 
-`--convert-texture-fixture-full-mips` preserves that three-mip path and adds the six packed-tail
-levels only for the validated 128x256, nine-mip `T_GT_Fir_Cluster_MASK` oracle. The packed layout
-was measured with both the January 2011 Gears `XeTools.dll` and Judgment's April 2012
-`Xbox360Tools.dll`; both produced the same 45-block placement. XG reports an 8,192-byte allocation,
-but every meaningful block lies below byte 1,856 and Judgment serializes the first 4,096 bytes.
-The converter contains the resulting dependency-free inverse map, applies the same 16-bit endian
-correction per BC1 block, emits all nine levels inline, and changes `MipTailBaseIdx` from 3 to 8.
-It rejects every other object, dimension chain, mip count, tail base, or tail allocation size.
+`--convert-texture-fixture-full-mips` recovers every resident level, including the packed tail.
+The current probe computes packed placement from each texture's dimensions, tail base and pixel
+format; the original nine-level `T_GT_Fir_Cluster_MASK` fixture remains a historical oracle.
+Stripped high-resolution sentinels are omitted and the PC base size is adjusted accordingly.
+Every meaningful block must map uniquely inside its allocation. No-mipmap textures can omit
+`MipTailBaseIdx` because the class default is zero. SP_E2_P's one-level 256x16 `PF_A8R8G8B8`
+night color-grading lookup table still uses a packed allocation; its 4,096 pixel addresses and
+DWORD byte permutation are independently checked against Judgment's own Xbox360Tools cooker.
+An explicitly serialized -1 instead means ordinary tiled allocations. The standalone fixture
+sets its final PC mip as the tail base.
+
+The standalone texture fixture deliberately keeps only six required settings. To integrate its
+pixels into a converted v845 asset or map, use `../replace_texture_pixels.py`; that writer retains
+the original material sampling, normal-map, SRGB, LOD and indexed unpack settings, drops the Xbox
+cache/resource-memory properties, and appends precisely framed PC mips. Object and name indices,
+other exports and their physical offsets stay fixed. `../validate_texture_fixture.py` independently
+checks probe-reported ranges, mip bytes, retained tags and the complete original file prefix.
 
 The `GuidCache` converter is intentionally not a generic package converter. It accepts only the
 observed uncompressed, big-endian v845 package with one `GuidCache` export. It rewrites the v828

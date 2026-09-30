@@ -3156,7 +3156,32 @@ int convertTextureFixture(const fs::path& input, std::size_t requestedExport,
     if (sourceArt.elementCount != 0 || sourceArt.sizeOnDisk != 0 || pvrtcCount != 0) {
       throw ParseError("first texture fixture requires empty SourceArt and cached PVRTC data");
     }
-    if (sourceMips.size() < 3) throw ParseError("texture does not contain three non-packed mips");
+    if (sourceMips.empty()) throw ParseError("texture has no mip data");
+
+    // A one-mip color-grading LUT omits MipTailBaseIdx because its class
+    // default is zero (Texture2D.uc does not override the zero-initialized int).
+    // Its only level still occupies the packed allocation. Make that default
+    // explicit in the standalone fixture instead of treating it as unpacked.
+    if (includePackedTail && std::none_of(properties.begin(), properties.end(),
+        [&](const auto& p) { return resolver.name(p.name) == "MipTailBaseIdx"; })) {
+      if (object.archetypeIndex != 0) {
+        throw ParseError("cannot infer an omitted tail index from a custom texture archetype");
+      }
+      const auto findName = [&](std::string_view text) {
+        for (std::size_t i = 0; i < names.size(); ++i) {
+          if (names[i].value == text) return NameRef{static_cast<std::int32_t>(i), 0};
+        }
+        throw ParseError("source name table lacks required texture metadata");
+      };
+      TaggedPropertyAnalysis property;
+      property.name = findName("MipTailBaseIdx");
+      property.type = findName("IntProperty");
+      property.size = 4;
+      property.arrayIndex = 0;
+      property.hasIntValue = true;
+      property.intValue = 0;
+      properties.push_back(property);
+    }
 
     const TaggedPropertyAnalysis* formatProperty = nullptr;
     const TaggedPropertyAnalysis* mipTailProperty = nullptr;
@@ -3192,8 +3217,9 @@ int convertTextureFixture(const fs::path& input, std::size_t requestedExport,
     }
     const auto& textureFormat = formatEntry->second;
     if (mipTailProperty == nullptr || !mipTailProperty->hasIntValue ||
-        mipTailProperty->intValue < 0 ||
-        static_cast<std::size_t>(mipTailProperty->intValue) >= sourceMips.size()) {
+        (mipTailProperty->intValue == -1 ? !includePackedTail :
+         mipTailProperty->intValue < 0 ||
+         static_cast<std::size_t>(mipTailProperty->intValue) >= sourceMips.size())) {
       throw ParseError("Texture2D has no usable MipTailBaseIdx");
     }
     if (sourceMips[0].sizeX != requiredProperties["SizeX"]->intValue ||
@@ -3219,7 +3245,8 @@ int convertTextureFixture(const fs::path& input, std::size_t requestedExport,
 
     // Everything above the tail base is an ordinary tiled allocation; the tail
     // base level and everything below it share one packed allocation.
-    const auto tailBase = static_cast<std::size_t>(mipTailProperty->intValue);
+    const auto tailBase = mipTailProperty->intValue == -1 ? sourceMips.size() :
+                          static_cast<std::size_t>(mipTailProperty->intValue);
 
     // Shipped cooks routinely strip the highest-resolution levels of a
     // streaming texture, leaving UE3's unused sentinel (flags 0x21, zero
@@ -3262,7 +3289,7 @@ int convertTextureFixture(const fs::path& input, std::size_t requestedExport,
           static_cast<std::uint32_t>(sourceMip.sizeX),
           static_cast<std::uint32_t>(sourceMip.sizeY), textureFormat);
     }
-    if (includePackedTail) {
+    if (includePackedTail && tailBase < sourceMips.size()) {
       // The packed tail is no longer a table measured for one asset: the
       // layout is computed from the texture's own geometry and pixel format.
       if (sourceMips.size() <= tailBase) {
