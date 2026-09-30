@@ -1,5 +1,38 @@
 # Judgment native-port - build-tree status
 
+## Session XXI (2026-09-30): cover/navigation package loads; next blocker is animations
+
+Converter continues from `9c14d4c` in its isolated branch. No additional engine
+changes: retained ws10 streaming/BSP loader and private patch 0010 are still used.
+Final campaign protection: **20,284 files checked, zero changes** in both campaign
+installs and shared source. No Judgment helper remains running.
+
+- SP_E2_01_S **560/560** and SP_E2_Audio **8/8** exports fully convert. All six
+  staged packages total **10,035/10,035**, zero unsupported/partial.
+- Native loading: **9,006 exact-size loads**, zero mismatches. Four navigation
+  meshes/two pylons load, including all 681 typed edges; world ticks/Baird possession.
+  SP_E2_01_S contributes 428 loads, audio level seven. Headless serialization only;
+  AI traversal, cover behavior, collision, rendering and audio remain unverified.
+- Cooked cover structs use declaration-order property chains, one BYTE per script
+  bool, FName enums, skipped native/transient fields and tagged BasedPosition values.
+  Navigation v43 matches engine grammar: WORD indices, mixed storage records,
+  transforms, border segments, bounds, typed edges. No serializer bypasses.
+- 59 unit tests pass. Independent conversion regeneration, package tables,
+  source/LE navigation values and topology, every native preload offset/size, BSP
+  expansion and packed skeletal-position checks all pass.
+- Next failure: missing `SP_E2_02_S`; error shutdown then access-violates. That
+  run is recorded as BLOCKED_AFTER_BOOT. SP_E2_02_S assessment: 2,669 exports,
+  2,636 complete, one partial Profiles array, 28 AnimSequence and four CombatZone
+  native tails unmodelled. Partial output remains in scratch, not staged.
+
+New staged files only in this workspace's Content\Maps: `SP_E2_01_S.gear` and
+`SP_E2_Audio.gear`. Launch whitelist now includes those two plus SP_E2_01,
+SP_E2_02 and SP_E2_W. Every test uses `-NOHOMEDIR` in this copy.
+Evidence: `GearGame\Logs\regress-ws10-navigation-audio-sp_e2_p.log` and results JSON;
+scratch `geometry-navigation-audio-20260930.validation.json` and
+`navigation-20260930.validation.json`. Converter `NAVIGATION-CHECKPOINT.md`
+contains exact artifact hashes and reproduction commands.
+
 ## Session XX (2026-09-30): three retail streaming maps load; BSP stride fixed
 
 All work stays in this isolated `judgment/port-workspace` copy and converter branch
