@@ -990,3 +990,33 @@ offsets/sizes. Packed skeletal-position telemetry still passes. Headless loading
 establish AI/cover behavior, collision, visual rendering, animations or audio playback.
 The final missing-package error is followed by an error-shutdown access violation; evidence
 records BLOCKED_AFTER_BOOT. See `NAVIGATION-CHECKPOINT.md` for hashes, commands and next steps.
+
+## Session XXII (2026-09-30): compressed animations and continuing headless world ticks
+
+Continues `3acd5d1` in the isolated converter/engine branches. SP_E2_02_S now converts
+2,669/2,669 exports: 28 per-track compressed animations, four built CombatZone poly maps,
+and the immutable AimOffsetProfile array. Seven staged packages total 12,704 exports,
+zero partial/unsupported. Independent parsing verifies 3,836 encoded tracks, 48,415 keys,
+453 frame tables, 164 combat poly refs and 32 aim bones. Native codecs evaluate 6,636
+finite pose samples. All archives regenerate exactly; native preload offsets/sizes match.
+
+New opt-in diagnostics revealed that process survival after first tick concealed a texture
+streaming stall. Read-only debugger stacks identified shader-cache SavePackage flushing
+and forced-export Texture2D linker detachment. NoTextureStreaming is parsed too late for
+startup resources. The accepted ws14-v2 helper disables streaming at NullRHI initialization
+and skips local shader-cache saves under Judgment NullRHI. Renderer-enabled behavior is
+unchanged. Resource omission was tested, failed in ambient occlusion, and reverted; the
+accepted binary was rebuilt after a restored-source timestamp caused stale compilation.
+
+The final 100-second headless test passes: 11,266 exact-size loads, no mismatch/critical,
+seven loaded levels, and continuing completed ticks through 96.84 seconds (serial 4,196,
+game time 67.850). PkgInfo and the 75-second thin map also pass. The regression checks the
+four base packed LOD samples by package, allowing additional streamed meshes, and requires
+recent paired tick reports. 65 unit tests pass. Campaign/source protection remains zero
+changes across 20,284 files. No helper remains running after the tests.
+
+Actual visible-gameplay blockers remain: Baird's mesh is NULL, external texture bulk mips
+are missing, and script initialization warnings persist. Input/physics/AI/cover/render/audio
+are unverified. Further SP_E2_03_S assessment is unstaged (687 complete/101 unmodelled of
+788 exports), requiring morph data and variable-key animation grammar. See
+`ANIMATION-PROTOTYPE-CHECKPOINT.md` for accepted patch/binary hashes, evidence and commands.

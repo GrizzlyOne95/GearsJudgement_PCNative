@@ -79,6 +79,25 @@ class NavigationTests(unittest.TestCase):
             self.assertFalse(converter.native_tail("Pylon", 0, len(data)))
             self.assertEqual(bytes(converter.out), data)
 
+    def test_combat_zone_map_refs_build_flag_and_truncation(self):
+        source = struct.pack(">i14i", 2, 1, 2, 3, 4, 5, 6, 7, -1, 8, 9, 10, 11, 12, 13)
+        for built in (False, True):
+            converter = Converter(source)
+            converter._native_bool_properties = {"bCombatZoneBuilt": built}
+            self.assertEqual(converter.native_tail("CombatZone", 0, len(source)), built)
+            self.assertEqual(bytes(converter.out), struct.pack("<i14i", 2, 1, 2, 3, 4, 5, 6, 7,
+                                                              -1, 8, 9, 10, 11, 12, 13) if built else source)
+        for end in range(len(source)):
+            converter = Converter(source[:end])
+            converter._native_bool_properties = {"bCombatZoneBuilt": True}
+            self.assertFalse(converter.native_tail("CombatZone", 0, end))
+            self.assertEqual(bytes(converter.out), source[:end])
+        converter = Converter(source)
+        converter._native_bool_properties = {"bCombatZoneBuilt": True}
+        converter._import_count, converter._export_count = 0, 0
+        self.assertFalse(converter.native_tail("CombatZone", 0, len(source)))
+        self.assertEqual(bytes(converter.out), source)
+
 
 if __name__ == "__main__":
     unittest.main()
