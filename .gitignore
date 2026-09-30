@@ -1,0 +1,22 @@
+# Retail game content and derived data must never be committed.
+package-probe/build/
+*.xxx
+*.unc
+*.upk
+*.u
+*.gear
+*.umap
+*.xma
+*.bin
+*.exe
+*.dll
+*.pdb
+*.log
+__pycache__/
+*.bak*
+*.bak-*
+desktop.ini
+/-h
+/--help
+*/build/
+*.obj
