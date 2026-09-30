@@ -33,6 +33,45 @@ REQUIRED = [
 ]
 
 
+def audit_ai_accessor_layer(text):
+    """Require real singleton evidence and disclose the unported native Init/Tick."""
+    enabled = "-JUDGAIACCESSORS" in text
+    if not enabled:
+        if "[JUDGAI]" in text or "[JUDGAI][PARTIAL]" in text:
+            raise GraphError("AI prototype ran without its explicit flag")
+        return None
+    partial = re.findall(r"\[JUDGAI\]\[PARTIAL\] singleton=(\S+) root=(\d+) cdo=(\d+) native-init-pending=(\S+) tick-pending=(\d+)", text)
+    if len(partial) != 1 or partial[0][1:] != (
+            "1", "0", "ETQSystem,AISpawnManager,AIDebugTool", "1"):
+        raise GraphError("missing or inconsistent partial AI initialization disclosure")
+    instance = partial[0][0]
+    calls = re.findall(r"\[JUDGAI\] get-instance caller=(\S+) instance=(\S+) root=(\d+) cdo=(\d+) count=(\d+)", text)
+    if len(calls) < 3 or any(row[1] != instance or row[2:4] != ("1", "0") for row in calls):
+        raise GraphError("AI accessors did not return the same real rooted singleton")
+    initial = [row for row in calls if int(row[4]) <= 16]
+    if [int(row[4]) for row in initial] != list(range(1, len(initial) + 1)):
+        raise GraphError("AI singleton call trace is missing or out of order")
+    callers = sorted({row[0] for row in initial})
+    companion_callers = [c for c in callers if c.startswith(
+        "Judgment_SP_E2_P.TheWorld:PersistentLevel.GearAI_")]
+    if len(companion_callers) < 3:
+        raise GraphError("missing three original companion AI callers")
+    spawners = re.findall(r"\[JUDGAI\] smart-spawner instance=(\S+) class=(\S+) cdo=(\d+)", text)
+    if len(spawners) != 1 or spawners[0][1:] != ("GearGame.SmartSpawner", "0"):
+        raise GraphError("missing live original SmartSpawner instance")
+    if re.search(r"\[JUDGBIND\]\[STUB\] cls=(?:AISystem#\d+ func=GetInstance|SmartSpawner#\d+ func=SetInstance)(?:\s|$)", text):
+        raise GraphError("prototype accessor still used the generic native fallback")
+    if "Function GearGame.GearAI_COGGear:Possess:0046" in text:
+        raise GraphError("companion possession still reports the null AI system")
+    return {"status": "experimental-accessor-layer-only", "singleton": instance,
+            "rooted": True, "is_class_default_object": False,
+            "companion_callers": companion_callers, "reported_calls": len(calls),
+            "smart_spawner": spawners[0][0],
+            "native_initialization_pending": partial[0][3].split(","),
+            "native_tick_implemented": False, "map_cleanup_verified": False,
+            "encounter_verified": False}
+
+
 def audit_log(text, graphs):
     if "-JUDGSEQUENCETRACE" not in text or "[JUDGSEQ] trace-limit" in text:
         raise GraphError("missing or truncated campaign execution trace")
@@ -118,6 +157,7 @@ def audit_log(text, graphs):
         "native_fallbacks": dict(sorted(stubs.items())),
         "fallback_counts_are_reported_thresholds": True,
         "script_warnings_by_function": dict(warnings.most_common()),
+        "experimental_ai_accessor_layer": audit_ai_accessor_layer(text),
         "checkpoint_save_restore_verified": False, "encounter_verified": False,
     }
 

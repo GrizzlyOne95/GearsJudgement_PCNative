@@ -1091,3 +1091,27 @@ warnings remain. Checkpoint restore, encounters and playable full campaign
 behavior are still unverified. See `CAMPAIGN-STARTUP-CHECKPOINT.md` for hashes,
 private patch 0018 and retained evidence. The Gears 3 protection audit again
 checks 20,284 files with zero changes.
+
+## Session XXVI: guarded native AI accessor experiment (2026-09-30)
+
+The new original PDB reader validates 213,859 public symbols from the local
+Judgment Release build and resolves the required native AI interfaces. Its
+identity matches the original image's RSDS GUID/age. Native inspection confirms
+that AISystem requires ETQ, spawn-manager and debug-tool initialization, and
+that the director requires its finite-state machine; these remain unported.
+
+Private ws19 patch 0019 adds an explicit -JUDGAIACCESSORS singleton/accessor
+experiment while the harness retains ws18 as its default. Three original
+companion controllers obtain the same real rooted AISystem object, and the
+live SmartSpawner reaches SetInstance. The null AI-system possession warnings
+disappear; Squad and AI logging warnings remain. The 100-second D3D9 experiment
+preserves the original startup/objective proof, 11,374 exact loads, 15 paired
+ticks and 4,010 presentations. The audit discloses incomplete subsystem Init,
+Tick, cleanup and encounters, and verifies three callers instead of treating
+the absence of a fallback log as sufficient evidence. 138 unit tests pass.
+The final flag-off PkgInfo/thin-map/SP_E2_P suite also passes with campaign
+startup/objective validation; the prototype layer is absent in its report.
+
+See `AI-NATIVE-CHECKPOINT.md` for contracts, hashes and retained evidence.
+All source/content/runtime work stays in the separate copy; the protected
+Gears 3 audit remains 20,284 files with zero changes.

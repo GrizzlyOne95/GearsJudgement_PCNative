@@ -104,3 +104,11 @@ All source/build/content/runtime work stays in
 `C:\Games\Gears 3 Files\Judgment Port Workspace`. The protected Gears 3 audit
 checks 20,284 files with zero changes. Only original tooling and documentation
 are committed; packages, engine patches/source, reports and binaries stay private.
+
+Session XXVI adds a separately flagged ws19 native-accessor experiment. Three
+original companion AI controllers now share a real rooted AISystem singleton,
+and the live SmartSpawner reaches SetInstance. The null-system possession
+warnings disappear while missing Squad warnings remain. Native subsystem
+initialization, Tick, cleanup and encounters are explicitly still incomplete.
+The rendered experiment preserves this startup/objective milestone; ws18
+remains the harness default. See `AI-NATIVE-CHECKPOINT.md`.
