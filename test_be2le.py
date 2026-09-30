@@ -41,6 +41,27 @@ class EnumBytePropertyTests(unittest.TestCase):
         self.assertEqual(converter.unsupported["ByteProperty enum value: bad FName"], 1)
 
 
+class FaceFXTailTests(unittest.TestCase):
+    def archive(self, sdk=1740, file_format=0):
+        return b"FACB" + struct.pack(">II", sdk, file_format) + bytes(range(9))
+
+    def test_big_endian_archive_counts_swap_and_bytes_stay_opaque(self):
+        blob = self.archive()
+        source = struct.pack(">i", len(blob)) + blob + struct.pack(">i", 0)
+        converter = Converter(source)
+
+        self.assertTrue(converter.native_tail("FaceFXAnimSet", 0, len(source)))
+        self.assertEqual(bytes(converter.out), struct.pack("<i", len(blob)) + blob + struct.pack("<i", 0))
+
+    def test_newer_facefx_sdk_fails_closed(self):
+        blob = self.archive(sdk=1750)
+        source = struct.pack(">i", len(blob)) + blob + struct.pack(">i", 0)
+        converter = Converter(source)
+
+        self.assertFalse(converter.native_tail("FaceFXAsset", 0, len(source)))
+        self.assertEqual(bytes(converter.out), source)
+
+
 class NativePlatformTailTests(unittest.TestCase):
     def test_empty_shader_cache_retargets_xbox_to_pc_sm3(self):
         source = struct.pack(">iBiii", 10, 2, 0, 0, 0)

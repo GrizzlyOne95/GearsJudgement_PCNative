@@ -881,3 +881,16 @@ detail is in the workspace `JUDGMENT-PORT-STATUS.md` (Session XVIII).
 - Output `e2-surface\SP_E2_P.enumbyte.le.xxx` (`D681F5FC...`): 1,410/1,433 fully converted, 23
   unmodelled tails. Staged only in the isolated workspace. Runtime: 62 exports load with exact
   sizes; next stop is the unmodelled `FaceFXAnimSet` tail (export 38).
+
+### Session XVIII continued: all loader gates on; FaceFX converts (2026-09-30)
+
+- All four `JUDGMENTPKGVER` loader gates are now active. With the console layout on,
+  `FVert::GetSizeForBulkSerialization` is 16, so `tail_model` keeps the console FVert size and
+  walks Verts as `[4,4,4,4]`; the old 16->24 retarget is gone (thin map re-staged, boots and
+  possesses; new stage `E7658EA5...`).
+- `tail_facefx` (precise, fail-closed): `UFaceFXAnimSet`/`UFaceFXAsset` serialize two
+  `TArray<BYTE>`. The FxArchive is `FACB` (big endian) SDK 1740, file format 0 - identical to the
+  runtime's FaceFX SDK, which byte-swaps on load - so only the two UE3 counts are swapped. 2 tests.
+- `SP_E2_P.facefx.le.xxx`: 1,413/1,433 fully converted, 20 unmodelled tails. Runtime loads 84
+  exports exactly; next stop is export 69 `Helmet_MASTER` (`Material` native tail, 148 B) - the
+  first rendering-side serializer (`FMaterialResource`).

@@ -45,6 +45,11 @@ import json
 import struct
 import sys
 
+# FaceFX SDK the Win32 runtime links (External\FaceFX\FxSDK: FxSDK.cpp FX_SDK_VERSION,
+# FxVersionInfo.h FxFileFormatVersion). FxArchive refuses anything newer.
+FACEFX_SDK_VERSION = 1740
+FACEFX_FILE_FORMAT_VERSION = 0
+
 # Property value widths that can be swapped without consulting the script packages.
 SCALAR = {
     "IntProperty": [4], "FloatProperty": [4], "ObjectProperty": [4],
@@ -1086,8 +1091,33 @@ class Converter:
         return None
 
     def tail_facefx(self, off, end):
-        """FaceFXAnimSet/Asset - large bulk, use generic 4B swap for nullrhi."""
-        return self.tail_generic(off, end)
+        """UFaceFXAnimSet / UFaceFXAsset::Serialize: two TArray<BYTE> (UnFaceFXAnimSet.cpp:348).
+
+        The first array is a FaceFX FxArchive that records its own byte order ('FACB' = big
+        endian) and is byte-swapped by the FaceFX SDK while loading, so its bytes stay opaque;
+        only the UE3 array counts are swapped. The second array is the (mini)session blob,
+        which FaceFX reads the same way. Only the version this engine's SDK accepts is taken.
+        """
+        pos = off
+        for index in range(2):
+            if pos + 4 > end:
+                return None
+            count = self.i32(pos)
+            if count < 0 or pos + 4 + count > end:
+                return None
+            body = pos + 4
+            if count:
+                # FxArchive header: magic, SDK version, file-format version (FxArchive.cpp:298).
+                if count < 12 or self.src[body:body + 3] != b"FAC" or self.src[body + 3:body + 4] not in (b"B", b"E"):
+                    return None
+                big_endian = self.src[body + 3:body + 4] == b"B"
+                sdk, file_format = struct.unpack_from(">II" if big_endian else "<II", self.src, body + 4)
+                if sdk > FACEFX_SDK_VERSION or file_format > FACEFX_FILE_FORMAT_VERSION:
+                    return None
+            self.swap(pos, 4)
+            pos = body + count
+            self.stats["facefx_archives_kept_opaque"] += 1 if count else 0
+        return pos
 
     def tail_generic(self, off, end):
         """Fallback for unmodelled native tails: byte-swap every 4B word.
@@ -1111,11 +1141,12 @@ class Converter:
             return None
         return self.swap_seq(off, [4])
 
-    # tail_skeletalmesh / tail_facefx are blind 4-byte-swap experiments (2026-09-05) and are
-    # deliberately NOT registered: they bypassed the fail-closed policy below. The 37 MB UClass
-    # read they were meant to work around was the loader's JUDGMENTPKGVER opt-in never firing
-    # (ParseParam rejects "-JUDGMENTPKGVER=845"), fixed in the engine on 2026-09-30.
+    # tail_skeletalmesh is a blind 4-byte-swap experiment (2026-09-05) and is deliberately NOT
+    # registered: it bypassed the fail-closed policy below. The 37 MB UClass read it was meant
+    # to work around was the loader's JUDGMENTPKGVER opt-in never firing (ParseParam rejects
+    # "-JUDGMENTPKGVER=845"), fixed in the engine on 2026-09-30.
     NATIVE_TAILS = {"Polys": "tail_polys", "World": "tail_world", "Model": "tail_model",
+                    "FaceFXAnimSet": "tail_facefx", "FaceFXAsset": "tail_facefx",
                     "Level": "tail_level", "ShaderCache": "tail_shader_cache",
                     "SoundCue": "tail_sound_cue", "SoundNodeWave": "tail_sound_node_wave",
                     "Texture2D": "tail_texture2d",
