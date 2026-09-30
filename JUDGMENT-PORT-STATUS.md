@@ -1,5 +1,42 @@
 # Judgment native-port - build-tree status
 
+## Session XIX (2026-09-30): skeletal meshes complete; SP_E2_P boots and possesses Baird
+
+Continued from converter `3baf313` on separate branch `judgment/skeletalmesh-20260930`.
+All source/build/map staging stayed in this isolated `judgment/port-workspace` copy.
+Campaign rebuild, Jacinto 1.1.1 and shared campaign source: 20,284 protected files,
+zero changes; test launches use `-NOHOMEDIR` for local config/save writes.
+
+- Converter: **1,433/1,433 exports** fully converted, zero unsupported or partial.
+  Complete skeleton/LOD/influence/trailer model preserves mesh data; packed positions
+  are expanded by the PC loader. Only the three mesh tails differ from checkpoint ws7.
+- Native test: **1,402 exact-size export loads**, zero mismatches. All three meshes
+  load, four packed LODs expand; first-position telemetry matches independent decoding.
+- `Judgment_SP_E2_P` reaches map-loaded, first world tick, Baird spawn and possession.
+  Next failure: `Couldn't find file for package SP_E2_01 requested by async loading code.`
+  Headless boot is proven; visible map rendering and a playable campaign remain unverified.
+- PkgInfo exits 0; the thin-map possession regression stays alive for 75 seconds.
+  Converter tests: 39/39. Independent package parser: zero invalid references,
+  24/24 valid texture frames, 254/254 valid sound frames.
+
+Loader: `Binaries\Win32\GearGame-JudgmentLoader-ws9-skeletalmesh-verified.exe`,
+59,406,336 bytes, SHA-256
+`C0B765E284970D0A53447C0D2C7BF465FA457A9E9A0D3BF6A70A08FD09EB5AE7`.
+Private/untracked source patch: `patches\judgment-port\0009-ws-packed-skeletalmesh.patch`.
+
+Staged map: `GearGame\Content\Maps\Judgment_SP_E2_P.gear`, 11,814,162 bytes,
+SHA-256 `6B3893A3C6830AF6DCE5F1EDB0C2502852B4D970D8B1B3F2660A19AAEB11E3B0`.
+Runtime evidence: `GearGame\Logs\regress-ws9-skeletalmesh-{pkginfo,thinmap,sp_e2_p}.log`
+and `regress-ws9-skeletalmesh-results.json` (SP_E2_P is explicitly BLOCKED_AFTER_BOOT).
+
+The converter is now a git repo at
+`C:\Games\NostalgiaBundle\projects\judgment-native`.
+`SKELETAL-MESH-CHECKPOINT.md` there records reproducible commands, hashes and source-patch
+recovery details. Do not replace it with the older tooling repo's converter.
+
+Next fixture `SP_E2_01` has 4,919 exports: 3,039 convert, 1,880 geometry/lighting/component
+tails remain. Its assessment output is retained in scratch and is not staged into the runtime.
+
 ## Session XVIII (2026-09-30): isolated workspace; 37 MB UClass read and enum-byte blockers closed
 
 ### Isolation (read first)
@@ -18,7 +55,7 @@ never build or edit there. All Judgment work now happens in:
   `verify-thin-map.ps1`, `build-judgment-loader.ps1`, `xg-tail-oracle\build.ps1`) now points at the
   workspace. Build with the working directory at `Development\Src`:
   `scripts\build-judgment-loader.ps1 -SourceRoot "<workspace>" -VersionTag <tag>`.
-- The newest converter is `C:\Games\NostalgiaBundle\projects\judgment-native` (not under git; it is
+- The newest converter is `C:\Games\NostalgiaBundle\projects\judgment-native` (now under git; it is
   ahead of the tooling repo's `content-converter`).
 
 ### Blocker 1 - 37 MB `ReadFile` during `GearPawn_CCarmine` (Session XVI/XVII) - ROOT-CAUSED, FIXED
