@@ -963,3 +963,30 @@ arrays, ActorReference/RouteList, four NavigationMeshBase tails and two Pylon ta
 Partial assessment stays in scratch and is not staged. Headless tests also report missing
 shadow/sky texture mip bulk data; visible rendering/codecs/physics/gameplay remain unproven.
 See `STREAMING-GEOMETRY-CHECKPOINT.md` for exact artifacts, hashes and reproduction commands.
+
+## Session XXI: cooked cover fields and navigation v43 (2026-09-30)
+
+Continued from streaming commit `9c14d4c`. SP_E2_01_S is now **560/560** converted,
+SP_E2_Audio **8/8**; all six staged packages total **10,035/10,035** with zero unsupported.
+The prior geometry archives remain byte-identical. Native runtime reaches **9,006 exact-size
+loads**, zero mismatches, including all four navigation meshes/two pylons and the audio level.
+Next missing package: SP_E2_02_S. Its 2,669 exports assess at 2,636 complete, one partial
+Profiles array, 28 unmodelled AnimSequence tails and four unmodelled CombatZone tails;
+partial output is not staged.
+
+The inherited binary CoverSlot assumptions were wrong: manifest listing order is reversed
+relative to the actual declaration-order property chain, script bools serialize one BYTE each,
+enums emit FNames, CPF_Native CachedPoly is skipped, and nested BasedPosition retains tags.
+`immutable_cover.py` models those rules with bounded reads; transaction rollback preserves
+earlier array elements when a later one fails. Tag header reads also check their region bounds.
+
+`native_navigation.py` models v43 vertices, edge storage, polys, transforms, border segments,
+bounds and nine registered edge types. Source/LE independent parsing preserves all scalar
+values and index topology: 1,905 vertices, 490 polygons, 681 typed edges. Obstacle polygons
+reference their pylon's main edge pool. No extra engine modifications are needed.
+
+59 unit tests pass; all six archives independently regenerate and match native preload
+offsets/sizes. Packed skeletal-position telemetry still passes. Headless loading does not
+establish AI/cover behavior, collision, visual rendering, animations or audio playback.
+The final missing-package error is followed by an error-shutdown access violation; evidence
+records BLOCKED_AFTER_BOOT. See `NAVIGATION-CHECKPOINT.md` for hashes, commands and next steps.

@@ -15,6 +15,8 @@ PACKAGES = {
     "SP_E2_01": ("SP_E2_01.geometry-v3-20260930.le.xxx", 4919),
     "SP_E2_02": ("SP_E2_02.geometry-assessment-20260930.le.xxx", 3054),
     "SP_E2_W": ("SP_E2_W.dominantlight-20260930.le.xxx", 61),
+    "SP_E2_01_S": ("SP_E2_01_S.navigation-20260930.le.xxx", 560),
+    "SP_E2_Audio": ("SP_E2_Audio.navigation-assessment-20260930.le.xxx", 8),
 }
 
 

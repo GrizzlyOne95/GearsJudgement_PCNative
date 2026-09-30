@@ -266,13 +266,19 @@ class Converter:
 
     def tags(self, names, off, end, depth=0, bool_properties=None, array_counts=None):
         """Swap a tagged-property stream. Returns the end position, or None if not one."""
+        if not 0 <= off <= end <= len(self.src):
+            return None
         while off < end:
+            if off + 8 > end:
+                return None
             idx = self.i32(off)
             if not 0 <= idx < len(names):
                 return None
             if names[idx] == "None":
                 self.swap_seq(off, [4, 4])
                 return off + 8
+            if off + 24 > end:
+                return None
             type_idx = self.i32(off + 8)
             if not 0 <= type_idx < len(names) or self.i32(off + 12) != 0:
                 return None
@@ -284,6 +290,8 @@ class Converter:
                 return None
             value, extra_name = off + 24, None
             if type_name in ("StructProperty", "ByteProperty"):
+                if value + 8 > end:
+                    return None
                 extra_idx = self.i32(value)
                 extra_name = names[extra_idx] if 0 <= extra_idx < len(names) else None
                 value += 8
@@ -347,7 +355,7 @@ class Converter:
         if widths is not None and sum(widths) in (size, 0):
             self.swap_seq(off, widths)
             return
-        if self.binary_struct(extra_name, off) == end:
+        if self.binary_struct(extra_name, off, end, exact=True, names=names) == end:
             return
         self.unsupported["struct %s (%dB)" % (extra_name, size)] += 1
 
@@ -451,154 +459,28 @@ class Converter:
             def walk_binary():
                 pos = body
                 for _ in range(count):
-                    nxt = self.binary_struct(struct_name, pos)
-                    if nxt is None or nxt <= pos or nxt > end:
+                    nxt = self.binary_struct(struct_name, pos, end, names=names)
+                    if nxt is None or nxt <= pos:
                         return False
                     pos = nxt
                 return pos == end
-
             if self.try_region(body, end, walk_binary):
                 return True
         return False
 
-    # -- immutable (binary) structs ---------------------------------------
-    # STRUCT_ImmutableWhenCooked structs serialize via UStruct::SerializeBin when the archive
-    # contains cooked data (UnProp.cpp:4188 UStructProperty::SerializeItem): each linked
-    # property's SerializeItem runs with NO tag headers, in PropertyLink order.
-    #
-    # PropertyLink order is REVERSE script-declaration order -- AddCppProperty prepends while
-    # registration walks the declaration top to bottom, and gen_native_block.py:207 needs
-    # .reverse() for the same reason. The Judgment v845 script manifests list properties in
-    # exactly this chain order, so the models below follow the manifests, not the UC text.
-    #
-    # ShouldSerializeValue (UnType.h:356) skips CPF_Transient fields on persistent archives,
-    # so transient vars are ABSENT from the cooked bytes even though they sit inside the same
-    # struct. Script bools share one BITFIELD DWORD: every non-transient member writes the
-    # same 4 bytes at the same offset, so the group costs 4 once no matter how many bits live.
-
-    def bs_tarray_bytes(self, off):
-        """TArray<BYTE>: INT count then raw bytes; only the count swaps."""
-        return self.byte_array(off)
-
-    def bs_actor_reference(self, off):
-        """ActorReference chain: Guid(atomic 16), Actor(ObjectProperty)."""
-        off = self.swap_seq(off, ATOMIC_STRUCT["Guid"])
-        return self.swap_seq(off, [4])
-
-    def bs_cover_info(self, off):
-        """CoverInfo chain: SlotIdx(IntProperty), Link(ObjectProperty) -> two INTs."""
-        return self.swap_seq(off, [4, 4])
-
-    def bs_fire_link(self, off):
-        """FireLink chain: bDynamicIndexInited(bitfield DWORD), PackedProperties_(INT),
-        Interactions(TArray<BYTE>). bFallbackLink rewrites the shared bitfield word."""
-        off = self.swap_seq(off, [4])                    # bitfield (bDynamicIndexInited first)
-        off = self.swap_seq(off, [4])                    # PackedProperties_CoverPairRefAndDynamicInfo
-        return self.bs_tarray_bytes(off)                 # Interactions
-
-    def bs_based_position(self, off):
-        """BasedPosition chain: CachedTransPosition, CachedBaseRotation, CachedBaseLocation,
-        Position (three FVector + one FRotator), Base(ObjectProperty)."""
-        off = self.swap_seq(off, ATOMIC_STRUCT["Vector"])            # CachedTransPosition
-        off = self.swap_seq(off, ATOMIC_STRUCT["Rotator"])           # CachedBaseRotation
-        off = self.swap_seq(off, ATOMIC_STRUCT["Vector"])            # CachedBaseLocation
-        off = self.swap_seq(off, ATOMIC_STRUCT["Vector"])            # Position
-        return self.swap_seq(off, [4])                               # Base
-
-    def bs_poly_reference(self, off, cached_poly_width):
-        """PolyReference chain: CachedPoly, PolyId(INT), OwningPylon(ActorReference).
-
-        CachedPoly is `var native Pointer` in the UC and shows up as a StructProperty in the
-        v845 manifest; neither build serializes an obvious width for it, so the caller tries
-        candidate widths and keeps whichever makes the enclosing array fit exactly.
-        """
-        if cached_poly_width:
-            off = self.swap_seq(off, [cached_poly_width])
-        off = self.swap_seq(off, [4])                    # PolyId
-        return self.bs_actor_reference(off)              # OwningPylon
-
-    def bs_slot_move_ref(self, off, cached_poly_width):
-        """SlotMoveRef chain: Direction(INT), Dest(BasedPosition), Poly(PolyReference)."""
-        off = self.swap_seq(off, [4])                    # Direction
-        off = self.bs_based_position(off)
-        if off is None:
-            return None
-        return self.bs_poly_reference(off, cached_poly_width)
-
-    def bs_cover_slot(self, off, cached_poly_width=0):
-        """CoverSlot chain (Judgment v845 manifest order), transient fields skipped.
-
-        Skipped per Gears 3 UC + ShouldSerializeValue: SlotValidAfterTime(transient float),
-        RejectedFireLinks(editconst transient array), bDestructible/bSelected/
-        bFailedToFindSurface (transient bools -- their bits still live in the shared
-        bitfield DWORD written by the surviving members).
-        """
-        off = self.swap_seq(off, [4])                    # bitfield: bPreferLeanOverPopup .. bLeanLeft
-        off = self.tarray(off, lambda p: self.bs_cover_info(p))      # OverlapClaimsList
-        if off is None:
-            return None
-
-        def slip(p):
-            return self.bs_slot_move_ref(p, cached_poly_width)
-        off = self.tarray(off, slip)                     # SlipRefs
-        if off is None:
-            return None
-        off = self.swap_seq(off, [4])                    # TurnTargetPackedProperties
-        off = self.tarray(off, lambda p: self.swap_seq(p, [4]))      # ExposedCoverPackedProperties
-        if off is None:
-            return None
-        off = self.tarray(off, lambda p: self.bs_fire_link(p))       # FireLinks
-        if off is None:
-            return None
-        off = self.bs_tarray_bytes(off)                  # Actions
-        if off is None:
-            return None
-        off = self.swap_seq(off, ATOMIC_STRUCT["Rotator"])           # RotationOffset
-        off = self.swap_seq(off, ATOMIC_STRUCT["Vector"])            # LocationOffset
-        return self.swap_seq(off, [1, 1, 1, 4])          # LocationDescription, CoverType,
-                                                         # ForceCoverType, SlotOwner
-
-    # Candidate widths for the unmodelled CachedPoly pointer field. 0 = not serialized at all;
-    # console pointers are 32-bit, so 4 is the only plausible non-zero width.
-    CACHED_POLY_WIDTHS = (0, 4)
-
-    def binary_struct(self, name, off):
-        """Convert one immutable-struct value starting at `off`; return stop offset or None.
-
-        Called from struct_value/array_with AFTER the tagged-stream parse failed, which is
-        exactly the cooked-data situation for ImmutableWhenCooked structs. The caller owns
-        the end-of-region check.
-        """
-        if name == "CoverSlot":
-            for width in self.CACHED_POLY_WIDTHS:
-                result = {}
-
-                def attempt(w=width, result=result):
-                    result["stop"] = self.bs_cover_slot(off, w)
-                    return result["stop"] is not None
-
-                if self.try_region(off, len(self.out), attempt):
-                    self.stats["binary_structs"] += 1
-                    return result["stop"]
-            return None
-        simple = {
-            "CoverInfo": self.bs_cover_info,
-            "FireLink": lambda p: self.bs_fire_link(p),
-            "BasedPosition": lambda p: self.bs_based_position(p),
-        }
-        handler = simple.get(name)
-        if handler is None:
-            return None
+    def binary_struct(self, name, off, end=None, exact=False, names=None):
+        """Walk persistent script fields at their serialized widths within a bounded region."""
+        from immutable_cover import CoverWalker
+        from native_reader import NativeLayoutError
+        end = len(self.src) if end is None else end
         result = {}
-
-        def attempt(result=result):
-            result["stop"] = handler(off)
-            return result["stop"] is not None
-
-        if self.try_region(off, len(self.out), attempt):
-            self.stats["binary_structs"] += 1
-            return result["stop"]
-        return None
+        def attempt():
+            try:
+                result["stop"] = CoverWalker(self, off, end, names).walk(name)
+                return result["stop"] == end if exact else True
+            except NativeLayoutError:
+                return False
+        return result["stop"] if self.try_region(off, end, attempt) else None
 
     # -- native tails ----------------------------------------------------
     # Per-class C++ serializers. Each returns the position it consumed up to, or None if it
@@ -867,6 +749,17 @@ class Converter:
     def tail_light_component(self, off, end):
         return self.tail_geometry(off, end, "light_component")
 
+    def tail_navigation(self, off, end, method="walk"):
+        from native_navigation import NavigationWalker
+        from native_reader import NativeLayoutError
+        try:
+            return getattr(NavigationWalker(self, off, end), method)()
+        except NativeLayoutError:
+            return None
+
+    def tail_pylon(self, off, end):
+        return self.tail_navigation(off, end, "pylon")
+
     def dominant_light_payload(self, off, end, names, template=False, flags=0):
         """Dominant lights serialize their WORD shadow array BEFORE Super/UObject."""
         from native_geometry import GeometryWalker
@@ -1102,6 +995,7 @@ class Converter:
         return self.swap_seq(off, [4])
 
     NATIVE_TAILS = {"Polys": "tail_polys", "World": "tail_world", "Model": "tail_model",
+                    "NavigationMeshBase": "tail_navigation", "Pylon": "tail_pylon",
                     "SkeletalMesh": "tail_skeletalmesh",
                     "FaceFXAnimSet": "tail_facefx", "FaceFXAsset": "tail_facefx",
                     "Material": "tail_material",
@@ -1180,6 +1074,7 @@ class Converter:
         return False
 
     def payloads(self, exports, names, class_of):
+        self._names = names
         self._name_count = len(names)
         self._import_count = self.header_ints()[5]
         self._export_count = len(exports)

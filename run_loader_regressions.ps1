@@ -1,9 +1,9 @@
 # Judgment-only tests. NOHOMEDIR keeps configuration and save writes in this copy.
 param(
-    [string]$Exe = 'GearGame-JudgmentLoader-ws9-skeletalmesh-verified.exe',
-    [string]$Tag = 'ws9-skeletalmesh',
+    [string]$Exe = 'GearGame-JudgmentLoader-ws10-streaminggeometry-verts.exe',
+    [string]$Tag = ('ws10-' + (Get-Date -Format 'yyyyMMdd-HHmmssfff')),
     [int]$BootSeconds = 75,
-    [string]$StreamingPackages = '',
+    [string]$StreamingPackages = 'SP_E2_01,SP_E2_02,SP_E2_W,SP_E2_01_S,SP_E2_Audio',
     [ValidateSet('pkginfo','thinmap','sp_e2_p')]
     [string[]]$Cases = @('pkginfo','thinmap','sp_e2_p')
 )
