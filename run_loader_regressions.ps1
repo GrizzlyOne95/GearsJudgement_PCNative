@@ -12,6 +12,9 @@ param(
     [switch]$AIPrototype,
     [switch]$AISquadTrace,
     [switch]$DirectorInit,
+    [switch]$FSMCore,
+    [switch]$FSMSelfTest,
+    [switch]$WindowResolution,
     [switch]$RequirePlayerMesh = $true,
     [ValidateRange(0,120)] [int]$SampleStackAtSeconds = 0,
     [string]$DebuggerExe,
@@ -36,12 +39,21 @@ if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) { throw "Missing load
 # ws16 honors the explicit option before startup loads and skips NullRHI cache saves.
 $common = '-user -NOHOMEDIR -JUDGMENTPKGVER=845 -forcelogflush -unattended -nopause -nosound -NoTextureStreaming'
 $common += if ($Renderer -eq 'NullRHI') { ' -nullrhi' } else { ' -d3d9 -windowed -ResX=1280 -ResY=720' }
+if ($WindowResolution) {
+    if ($Renderer -ne 'D3D9') { throw 'The explicit window resolution option requires D3D9.' }
+    $common += ' -JUDGWINDOWRESOLUTION'
+}
 if ($PrototypeTrace) { $common += ' -JUDGPROTOTRACE' }
 if ($MaterialTrace) { $common += ' -JUDGMATERIALTRACE' }
 if ($SequenceTrace -or $CampaignStartup -or $AISquadTrace) { $common += ' -JUDGSEQUENCETRACE' }
 if ($AIPrototype) { $common += ' -JUDGAIACCESSORS' }
 if ($AISquadTrace) { $common += ' -JUDGAISQUADTRACE' }
 if ($DirectorInit) { $common += ' -JUDGAIDIRECTORINIT' }
+if ($FSMCore) { $common += ' -JUDGFSMCORE' }
+if ($FSMSelfTest) {
+    if (-not $FSMCore -or -not $DirectorInit) { throw 'FSM self-test requires the core and director initializer flags.' }
+    $common += ' -JUDGFSMSELFTEST'
+}
 if ($CaptureScreenshot -and $Renderer -eq 'D3D9') { $common += ' -JUDGSHOT' }
 $convertedPackages = (@($StreamingPackages, $AssetPackages) | Where-Object { $_ }) -join ','
 if ($convertedPackages) {
