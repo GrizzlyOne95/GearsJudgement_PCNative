@@ -162,3 +162,96 @@ Retained tags: `ws20-squad-prototype-20260930`, `ws20-squad-baseline-20260930`.
 ./run_loader_regressions.ps1 -Exe GearGame-JudgmentLoader-ws20-squad-trace.exe -Cases sp_e2_p -BootSeconds 100 -CampaignStartup -AIPrototype -AISquadTrace
 ./run_loader_regressions.ps1 -Exe GearGame-JudgmentLoader-ws20-squad-trace.exe -Cases sp_e2_p -CampaignStartup -AISquadTrace
 ```
+
+
+## Session XXVIII: director-specific native initialization
+
+Private original-code inspection identifies AIDirector.Init at `0x8345d638`
+and FiniteStateMachine.Init at `0x83480d18`. The director stores its SmartSpawner,
+constructs FSM_AIDirector with itself as outer, calls Init(owner, FALSE), and sets
+bPerformLMsAutoSetup. The PDB type records resolve the three original booleans at
+offset 248: bPendingStop `0x80000000`, bPerformLMsAutoSetup `0x40000000`,
+bIsRunning `0x20000000`. This prevents confusing automatic level-marker setup
+with starting the director. The PC implementation uses the loaded named property's
+mask, rather than carrying those Xbox masks into PC objects. Type format reference:
+[LLVM CodeView type records](https://github.com/llvm/llvm-project/blob/main/llvm/include/llvm/DebugInfo/CodeView/TypeRecord.h).
+
+The original FSM_AIDirector CDO is walked to its exact export boundary. It defines
+BuildUp -> PeakSustain -> PeakFade -> Relax -> BuildUp. Its four transitions
+initially have ToStateIdx=-1 and all delegates are unbound. Original FSM Init binds
+enter/leave and condition delegates, resolves target indices, invokes OnInit when
+bScriptInit is enabled, then sets Status=1. Its native owner casts populate MyAI
+and MyGoal; GenericOwner is not assigned by that native initializer. Activation
+occurs only when Init's separate argument is TRUE. The director passes FALSE.
+The original overridden OnInit script assigns its AIDirector property from Owner.
+No script or CDO export is changed.
+
+Private patch `0021-ws-director-init-prototype.patch` adds only the director's
+Init(FALSE) path, selected with `-JUDGAIDIRECTORINIT`. A layout-free UObject VM
+bridge constructs the original loaded FSM class. Checked property types, widths,
+offsets, struct strides and bounded arrays provide access to its fields. All
+nested array bounds are checked before the FSM's first field write. The existing
+AISystem property block is byte-identical. The general FiniteStateMachine.Init
+native binding is not replaced, and its activate=TRUE path remains unported.
+Native director/FSM Tick, pacing callback bodies, queries and encounter behavior
+remain pending. Binding a delegate does not implement its missing native body.
+The auto-setup flag is enabled; actual level-marker setup is not established.
+
+Loader: `GearGame-JudgmentLoader-ws21-director-init.exe`, 59,453,952 bytes,
+SHA-256 `981B35D0AE057A261866D75E6FC1E1D67E499BC6EBB7A60C6BDB8860BEB873C7`.
+Private patch: 11,253 bytes, SHA-256
+`603717765a49409681fd7fc632f79bc082aa956602eba775f6d8ec09263beb52`.
+Before/after replay is byte-exact with `git -c core.autocrlf=false apply`.
+Added lines were normalized to the files' original CRLF after the successful
+build; C++ tokens and line numbers are unchanged.
+
+The 100-second NullRHI run passes original startup, objective and squad proofs:
+11,374 exact loads, no framing mismatches/fatal errors, 15 paired tick reports
+(last 96.56 s, game time 69.295 s) and seven levels. Runtime inspection proves
+Transient.AIDirector_0 has its live SmartSpawner, owns a real FSM_AIDirector,
+binds 12 delegates, resolves transition indices 1/2/3/0, and obtains the correct
+owner through the original OnInit script. Status=1, auto-setup=1, running=0.
+AIDirector.Init no longer uses the generic fallback. SmartSpawner's visible-spawn
+query and GearAI.PickGoal still do.
+
+The initial 100-second D3D9 attempt passes startup/objective/squad/director gates
+and keeps ticking to 98.80 s, but fails the late-presentation gate: its last
+recorded presentation is 60.36 s (1,615 frames). This failed attempt is retained.
+A second run of the same binary passes the complete rendered gate with 3,506
+presentations (last 95.34 s), 15 paired ticks (last 98.93 s, game time 68.558 s),
+11,374 exact loads and unchanged startup/squad proofs. Read-only monitoring of
+that helper's window confirms a visible, non-minimized 1280x720 client area after
+startup. It does not establish the cause of the first presentation gap. ws18
+remains the harness default; this is an optional AI initialization experiment.
+
+The campaign audit now separately verifies all four original state names,
+12 delegate bindings, the four target indices, real machine outer/owner,
+original script-owned director, initialized status, unchanged inactive state,
+auto-setup flag, matching live spawner and explicit pending native work. Missing,
+repeated, unbound, misdirected, incorrectly activated or fallback-only evidence
+fails the gate. Reports explicitly leave pacing callbacks and encounters
+unimplemented. 154 unit tests pass, including nine new initializer proof cases.
+
+Retained tags: `ws21-director-init-null-20260930`,
+`ws21-director-init-render-20260930` (failed presentation gate), and
+`ws21-director-init-render-retry-20260930`. The final headless audit with the new
+gate is retained privately as `director-init-null-final-v2.validation.json`; its
+earlier automatic report predates this new gate. Original type/code/default
+reports remain private.
+
+```powershell
+./run_loader_regressions.ps1 -Exe GearGame-JudgmentLoader-ws21-director-init.exe -Cases sp_e2_p -BootSeconds 100 -CampaignStartup -AIPrototype -AISquadTrace -DirectorInit
+./run_loader_regressions.ps1 -Exe GearGame-JudgmentLoader-ws21-director-init.exe -Cases sp_e2_p -BootSeconds 100 -Renderer D3D9 -CampaignStartup -AIPrototype -AISquadTrace -DirectorInit -MaterialTrace
+```
+
+Next: native director/FSM Tick and pacing callbacks, ETQ initialization/query
+execution and companion goal selection. Input, encounters and checkpoint restore
+remain unverified. Protected Gears 3 audit: 20,284 files, zero changes.
+
+
+The final `ws21-baseline-control-20260930` flag-off suite passes PkgInfo,
+the thin map and SP_E2_P. Both experimental layers are absent; the original
+AISystem.GetInstance, SmartSpawner.SetInstance and AIDirector.Init fallbacks
+remain, and existing scripted squad membership still passes. SP_E2_P records
+11,374 exact loads, ten paired ticks (last 71.75 s) and preserved objective 1.
+This confirms the director initializer is conditional in the new binary.
