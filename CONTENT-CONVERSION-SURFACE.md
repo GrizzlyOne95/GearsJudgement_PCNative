@@ -1133,3 +1133,33 @@ The membership gate rejects absent/unreadable or duplicated objects, wrong
 leaders/teams/squads and missing member indices. Movement, encounters and the
 player's member-array entry are not claimed. Native query/director/goal behavior
 remains the next implementation work; see `AI-NATIVE-CHECKPOINT.md`.
+
+
+## Session XXVIII: director initialization (2026-09-30)
+
+Optional private ws21 patch 0021 implements the director-specific Init(FALSE)
+path. It constructs the original FSM_AIDirector, binds 12 enter/leave/condition
+delegates, resolves its four original transition indices, invokes the original
+OnInit script and sets initialized status. The auto level-marker setup flag is
+enabled without activating the director. Original PDB bitfield types identify
+the correct flag; PC accesses use checked loaded-property reflection. Scripts,
+CDOs and the AISystem member layout remain unchanged.
+
+The 100-second headless test preserves original startup, objective 1 and squad
+membership with 11,374 exact loads and 15 paired ticks. A rendered retry passes
+with 3,506 presents through 95.34 seconds and continued ticks through 98.93.
+The earlier rendered attempt fails the late-presentation gate, despite continued
+world ticking; that evidence and the unresolved cause are retained. ws18 remains
+the default loader. 154 unit tests pass, including nine new proof cases.
+Native director/FSM updates, the bound callbacks' native bodies, ETQ queries and
+goal selection remain unported; working encounters are not claimed. See
+`AI-NATIVE-CHECKPOINT.md` for contracts, hashes and retained logs.
+Protected Gears 3 audit: 20,284 files, zero changes.
+
+
+The final `ws21-baseline-control-20260930` flag-off suite passes PkgInfo,
+the thin map and SP_E2_P. Both experimental layers are absent; the original
+AISystem.GetInstance, SmartSpawner.SetInstance and AIDirector.Init fallbacks
+remain, and existing scripted squad membership still passes. SP_E2_P records
+11,374 exact loads, ten paired ticks (last 71.75 s) and preserved objective 1.
+This confirms the director initializer is conditional in the new binary.

@@ -72,6 +72,62 @@ def audit_ai_accessor_layer(text):
             "encounter_verified": False}
 
 
+def audit_director_initialization(text, smart_spawner=None):
+    """Verify the original four-state initialization, without claiming activation."""
+    if "-JUDGAIDIRECTORINIT" not in text:
+        if "[JUDGDIRECTOR]" in text:
+            raise GraphError("director initialization ran without its explicit flag")
+        return None
+    partial = re.findall(
+        r"\[JUDGDIRECTOR\]\[PARTIAL\] director=(\S+) class=(\S+) spawner=(\S+) "
+        r"fsm=(\S+) cdo=(\d+) auto-setup=(\d+) running=(\d+) native-pending=(\S+)", text)
+    if len(partial) != 1:
+        raise GraphError("missing or repeated director initialization disclosure")
+    director, cls, spawner, fsm, cdo, auto_setup, running, pending = partial[0]
+    if (cls, cdo, auto_setup, running, pending) != (
+            "GearGame.AIDirector", "0", "1", "0",
+            "DirectorTick,FSMTick,PacingCallbacks,ETQQueries"):
+        raise GraphError("director initialization changed activation or pending-work contract")
+    if not director.startswith("Transient.AIDirector_") or not spawner.startswith("Transient.SmartSpawner_"):
+        raise GraphError("missing live transient director/spawner objects")
+    if smart_spawner is not None and spawner != smart_spawner:
+        raise GraphError("director parent differs from the live singleton spawner")
+    summaries = re.findall(
+        r"\[JUDGDIRECTOR\] fsm-init fsm=(\S+) class=(\S+) outer=(\S+) owner=(\S+) "
+        r"script-owner=(\S+) states=(\d+) transitions=(\d+) delegates=(\d+) "
+        r"status=(\d+) script-init=(\d+) activate=(\d+)", text)
+    if summaries != [(fsm, "GearGame.FSM_AIDirector", director, director, director,
+                      "4", "4", "12", "1", "1", "0")]:
+        raise GraphError("director machine lacks original owner, bindings or initialized status")
+    if not fsm.startswith(director + ":FSM_AIDirector_"):
+        raise GraphError("director machine path does not match its actual outer")
+    states = re.findall(
+        r"\[JUDGDIRECTOR\] state fsm=(\S+) index=(\d+) name=(\S+) enter=(\S+) "
+        r"enter-bound=(\d+) leave=(\S+) leave-bound=(\d+) transitions=(\d+)", text)
+    transitions = re.findall(
+        r"\[JUDGDIRECTOR\] transition fsm=(\S+) state=(\d+) index=(\d+) "
+        r"condition=(\S+) bound=(\d+) target=(\S+) target-index=(-?\d+)", text)
+    names = ("BuildUp", "PeakSustain", "PeakFade", "Relax")
+    expected_states = [(fsm, str(i), name, name + "OnEnter", "1", name + "OnLeave", "1", "1")
+                       for i, name in enumerate(names)]
+    expected_transitions = [(fsm, str(i), "0", name + "Condition", "1",
+                             names[(i + 1) % 4], str((i + 1) % 4))
+                            for i, name in enumerate(names)]
+    if states != expected_states or transitions != expected_transitions:
+        raise GraphError("director state names, delegate bindings or transition indices differ from original defaults")
+    if re.search(r"\[JUDGBIND\]\[STUB\] cls=AIDirector#\d+ func=Init(?:\s|$)", text):
+        raise GraphError("director initializer still used the generic native fallback")
+    return {"status": "experimental-director-initialization-only",
+            "director": director, "smart_spawner": spawner, "fsm": fsm,
+            "states": list(names), "transition_indices": [1, 2, 3, 0],
+            "bound_delegates": 12, "original_script_owner_verified": True,
+            "initialized_status": 1, "auto_level_marker_setup_enabled": True,
+            "running": False, "activated": False,
+            "pacing_callbacks_implemented": False,
+            "native_implementation_pending": pending.split(","),
+            "encounter_verified": False}
+
+
 def audit_companion_squads(text, player_controller):
     enabled = "-JUDGAISQUADTRACE" in text
     if not enabled:
@@ -181,6 +237,7 @@ def audit_log(text, graphs):
         key = match[1] + "." + match[2]
         stubs[key] = max(stubs.get(key, 0), int(match[3]))
     warnings = Counter(re.findall(r"ScriptWarning:[^\n]*\n[^\n]*\n\s*Function ([^\r\n]+)", text))
+    ai_layer = audit_ai_accessor_layer(text)
     return {
         "milestone": "original-startup-and-first-active-objective",
         "exact_native_loads": len(native_loads), "operation_reports": dict(counts),
@@ -190,7 +247,9 @@ def audit_log(text, graphs):
         "native_fallbacks": dict(sorted(stubs.items())),
         "fallback_counts_are_reported_thresholds": True,
         "script_warnings_by_function": dict(warnings.most_common()),
-        "experimental_ai_accessor_layer": audit_ai_accessor_layer(text),
+        "experimental_ai_accessor_layer": ai_layer,
+        "experimental_director_initialization": audit_director_initialization(
+            text, ai_layer["smart_spawner"] if ai_layer else None),
         "companion_squad_membership": audit_companion_squads(text, state[1].rsplit(".", 1)[0]),
         "checkpoint_save_restore_verified": False, "encounter_verified": False,
     }
