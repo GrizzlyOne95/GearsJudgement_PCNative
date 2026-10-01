@@ -1,5 +1,40 @@
 # Judgment native-port - build-tree status
 
+## Session XXVIII (2026-09-30): original director initialization
+
+Private patch 0021-ws-director-init-prototype.patch implements only the original
+director's FSM Init(owner, FALSE) path behind -JUDGAIDIRECTORINIT. The loaded
+FSM_AIDirector has four original states, 12 bound delegates, resolved transition
+indices 1/2/3/0, and its correct owner assigned by the original OnInit script.
+Status is initialized (1); automatic level-marker setup is enabled; the director
+is inactive. PDB type records distinguish bPerformLMsAutoSetup from bIsRunning.
+PC property masks/offsets are read through checked reflection. No script/CDO or
+AISystem property-layout change is made. Callback native bodies, Tick and query
+execution remain unported, so this does not establish a working encounter.
+
+GearGame-JudgmentLoader-ws21-director-init.exe: 59,453,952 bytes, SHA-256
+981B35D0AE057A261866D75E6FC1E1D67E499BC6EBB7A60C6BDB8860BEB873C7.
+Private patch: 11,253 bytes, SHA-256
+603717765a49409681fd7fc632f79bc082aa956602eba775f6d8ec09263beb52.
+Exact-byte reverse/forward replay passes with git -c core.autocrlf=false apply.
+
+The 100-second headless run passes original startup/objective/squad/initializer
+proofs with 11,374 exact loads, 15 paired ticks and no fatal/framing errors.
+The rendered retry also passes, with 3,506 presents (last 95.34 seconds), ticks
+through 98.93 seconds and unchanged original mission state. The first rendered
+attempt loses late-presentation evidence while ticks continue; its failed gate
+and unresolved cause remain documented. The harness still defaults to ws18.
+154 unit tests pass, including nine new strict initializer evidence cases.
+The final flag-off PkgInfo/thin-map/SP_E2_P suite also passes, with both
+experimental layers absent and the original Init/accessor fallbacks retained.
+SP_E2_P preserves objective 1 and squad membership: 11,374 exact loads and
+ten paired ticks, last at 71.75 seconds.
+
+Native subsystem Init/Tick, director/FSM updates and pacing callbacks, ETQ
+queries and GearAI.PickGoal are next. Input, checkpoint restore, encounters,
+streamed lighting and the main Museum campaign remain unverified. All changes
+stay in this separate copy. Protected Gears 3: 20,284 files, zero changes.
+
 ## Session XXVII (2026-09-30): original squad membership verified
 
 Read-only ws20 reflection at the first objective confirms all three companion
