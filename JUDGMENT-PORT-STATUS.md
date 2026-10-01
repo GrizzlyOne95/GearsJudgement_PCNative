@@ -1,5 +1,70 @@
 # Judgment native-port - build-tree status
 
+## Sessions XXIX–XXX (2026-10-01): FSM core and narrow-desktop startup
+
+Private patch 0022-ws-fsm-core-prototype.patch adds original FSM VM controls,
+activation/deactivation/pause, events, forced transitions and command-class
+lookup behind -JUDGFSMCORE. The original timer, RelaxCondition and four empty
+OnLeave bodies are implemented. Transition priority, event consumption and
+timer order follow the original native contracts. Checked reflection retains
+UObject/AISystem layouts; scripts and CDOs are unchanged. Arrays are bounded to
+64 entries in this prototype; live director/FSM Tick integration remains pending.
+
+-JUDGFSMSELFTEST creates an independent transient original-class FSM. Twelve
+ordered cases verify controls, conditions-before-timer, paused/inactive queues,
+resume without repeated OnEnter, forced/invalid controls, event priority and
+Any wildcard matching. Fifteen PC numeric cases match private execution of the
+original PowerPC condition/timer code, including NaN, infinities and signed
+zero. Live director/FSM property and nested state/transition snapshots remain
+byte-identical. The real mission's machine stays initialized and inactive.
+Non-null state-command-class behavior, four pacing OnEnter bodies, three other
+conditions, ETQ/spawn queries and encounters remain unverified/unported.
+
+Patch 0022: 29,342 bytes, SHA-256
+a3541cadcf5ae3b513b2feaa1542b384d5bf75721a74495ab0a89ea9d96d0a2b.
+Exact-byte reverse/forward replay passes in an independent scratch Git root.
+GearGame-JudgmentLoader-ws22-fsm-core-v2.exe: 59,490,304 bytes, SHA-256
+064DBFF6B50DDD4985C84822195DADB5BC971C7E1C17CBE51050BDF513DB4504.
+Its 100-second headless test passes 11,374 exact loads, 15 paired ticks through
+98.60 seconds and startup/objective/squad/director/FSM checks.
+
+When the desktop becomes 600x1284, ws22 rendering and its flag-off suite exit
+at the existing minimum desktop-resolution check. These attempts are retained.
+Private patch 0023-ws-window-resolution.patch scopes a resolution exception to
+Judgment package version 845. NullRHI skips physical display sizing; rendering
+requires -JUDGWINDOWRESOLUTION, explicit windowed mode and requested dimensions
+at least 640x480. It changes no desktop settings. Other cases retain the check.
+Patch 0023: 1,590 bytes, SHA-256
+815b5878792a6a013accea79aeb8cec5306abf9f554b4b490ce0f2e8d5e19526.
+Exact-byte replay passes. GearGame-JudgmentLoader-ws23-window-fsm.exe:
+59,490,816 bytes, SHA-256
+C503C714F4EE9E750A4EB938DFFDDAB371B06822228CE55D8188C129E76685E7.
+
+The 100-second D3D9 test passes every campaign/FSM gate: 11,374 exact loads,
+14 paired ticks (last 95.03 s), seven levels, 3,372 frames presented through
+95.96 seconds and objective 1. The engine fits its requested 1280x720 window to
+the narrow desktop; presentations are 594x334. This is not a 1280x720 capture.
+168 unit tests pass, including 14 new strict FSM evidence-gate cases.
+
+The ws23 flag-off PkgInfo/thin-map/SP_E2_P suite passes with all three optional
+reports absent and original native fallbacks retained. SP_E2_P has 11,374
+exact loads, ten paired ticks through 71.03 seconds and original squad/objective.
+An initializer/accessor-on, FSM-off control also passes (11,374 exact loads,
+ten ticks through 71.10 seconds), preserving the prior inactive initializer.
+A ws23 D3D9 flag-off negative control retains the original low-display exit,
+before loading the mission. Its harness FAIL is expected for this control.
+The harness still defaults to ws18; ws23 is an optional prototype. See
+judgment-native/AI-NATIVE-CHECKPOINT.md for flags, tags and retained failures.
+
+Protection: another active task, “Validate Gears 3 fixes and UI”, is modifying
+campaign installs/shared source. The September 30 fingerprint has 600 historical
+differences at the October 1 snapshot: 20,811 current files (536 additions,
+9 removals, 55 alterations), including six shared source files. This Judgment
+work writes only its separate workspace, tooling and scratch. Old/new snapshots
+and the difference report are retained; no zero-global-change claim or rollback
+of the other task's work is made. Input, encounters, checkpoint restore, streamed
+lighting and the main Museum campaign remain unverified.
+
 ## Session XXVIII (2026-09-30): original director initialization
 
 Private patch 0021-ws-director-init-prototype.patch implements only the original
