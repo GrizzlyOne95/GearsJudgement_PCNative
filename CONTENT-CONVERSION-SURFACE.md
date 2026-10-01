@@ -1163,3 +1163,45 @@ AISystem.GetInstance, SmartSpawner.SetInstance and AIDirector.Init fallbacks
 remain, and existing scripted squad membership still passes. SP_E2_P records
 11,374 exact loads, ten paired ticks (last 71.75 s) and preserved objective 1.
 This confirms the director initializer is conditional in the new binary.
+
+
+## Sessions XXIX–XXX: FSM core and narrow-desktop prototype (2026-10-01)
+
+Private patch 0022 adds guarded original finite-state-machine controls, event
+priority/consumption, timer updates, RelaxCondition and four empty OnLeave
+callbacks. A detached original-class machine passes 12 ordered control tests;
+15 PC numeric boundaries match private execution of the original PowerPC code.
+The live director/FSM property and nested state/transition snapshots stay
+byte-identical. The original mission's machine remains inactive. Scripts,
+CDOs and native property layouts are unchanged.
+
+The headless ws22 run and rendered ws23 run retain 11,374 exact loads, original
+startup, active objective 1 and squad membership. The rendered run presents
+3,372 frames through 95.96 seconds and ticks through 95.03 seconds. Patch 0023
+handles a 600-pixel-wide desktop only for Judgment version 845: NullRHI skips
+a physical-display check, while rendering requires an explicit optional flag,
+windowed mode and valid requested dimensions. It changes no desktop settings.
+The engine fits its actual window to the display (594x334 in this run).
+Earlier display-check failures are retained; the old presentation-gap failure
+also remains documented.
+
+168 unit tests pass. New strict evidence gates distinguish detached FSM tests
+from live pacing. Four pacing OnEnter bodies, three other conditions, live
+update integration, ETQ/spawn queries, goal selection, movement, encounters
+and checkpoint restore remain pending. ws18 remains the harness default.
+See `AI-NATIVE-CHECKPOINT.md` for hashes, flags and retained evidence.
+
+
+The ws23 flag-off PkgInfo/thin-map/SP_E2_P suite passes; all experimental reports
+are absent and original native fallbacks remain. A separate prior-initializer
+control with the new FSM core disabled also passes, preserving 12 bindings and
+inactive status. See `AI-NATIVE-CHECKPOINT.md` for protection-audit context:
+another active campaign/UI task is modifying the protected trees, so yesterday's
+fingerprint differs. This Judgment session writes only its separate copy,
+tooling and scratch; the historical difference is retained, not erased.
+
+
+The ws23 D3D9 flag-off negative control (`ws23-window-flag-off-20261001`)
+retains the original minimum-desktop-resolution exit at 600 pixels wide,
+before any native mission load. Its harness FAIL is the expected result for
+this negative control. The explicit-window exception therefore remains opt-in.

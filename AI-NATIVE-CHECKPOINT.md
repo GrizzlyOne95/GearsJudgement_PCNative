@@ -255,3 +255,126 @@ AISystem.GetInstance, SmartSpawner.SetInstance and AIDirector.Init fallbacks
 remain, and existing scripted squad membership still passes. SP_E2_P records
 11,374 exact loads, ten paired ticks (last 71.75 s) and preserved objective 1.
 This confirms the director initializer is conditional in the new binary.
+
+
+## Session XXIX: detached FSM core and original-code numeric checks (2026-10-01)
+
+Private patch `0022-ws-fsm-core-prototype.patch` adds the finite-state-machine
+controls behind `-JUDGFSMCORE`: Init (including optional activation), Activate,
+Deactivate, Pause, OnWorldEvent, forced transitions by name/index, and current
+state command-class lookup. A checked reflection view accesses the original
+loaded properties; UObject/AISystem layouts, scripts and CDOs are unchanged.
+The original director initializer continues to pass activate=FALSE.
+
+The native contracts preserve several significant details. Pause leaves queued
+events and remaining time intact; resume does not invoke OnEnter again.
+Deactivate sets inactive status before OnLeave, and forced transitions are
+accepted while inactive. Initial-state lookup selects the first matching name;
+forced name lookup selects the last. During an active tick, the lowest matching
+transition index takes priority across all queued events. `Any` is a wildcard,
+but conditions are not evaluated without an event. Events are consumed even
+when the state has no transitions. Transition conditions run before the native
+timer decrement. The director timer and RelaxCondition are implemented, as are
+the four original empty OnLeave callbacks. Other native Tick_Impl overrides
+remain unsupported. The command-class transition branch invokes the original
+BeginDefaultCombatCommand script, but a non-null command-class case is unverified.
+
+The original RelaxCondition and director Tick_Impl machine code were executed
+privately with Unicorn 2.1.4. Nine condition boundaries and six timer cases
+include positive/negative/zero remaining time, signed zero, both infinities,
+NaN, zero/negative delta and crossing zero. All 15 PC results match the original
+execution, including the unordered-comparison case (NaN transitions). The
+original image, instructions, types and oracle report remain private. Emulator
+reference: [Unicorn PPC sample](https://github.com/unicorn-engine/unicorn/blob/master/samples/sample_ppc.c).
+
+`-JUDGFSMSELFTEST` constructs a separate transient FSM_AIDirector with independent
+state/transition arrays. Only this detached object substitutes empty base script
+delegates and RelaxCondition on every edge. It exercises the new VM native
+bindings, 12 ordered control/event/timer cases and all 15 numeric boundaries.
+Snapshots of the live director/FSM property blocks and nested state/transition
+arrays are byte-identical before and after the test. The real FSM is initialized
+and inactive; the test does not deliver synthetic events to it. It does not
+prove live combat pacing, companion movement or encounters.
+
+The campaign audit has a separate `experimental_fsm_core` report. It requires
+all ordered states, event counts, remaining times, callback counts, numeric bit
+results, detached object identity, correct live FSM identity and unchanged
+snapshots. Missing, repeated, reordered or inconsistent evidence and generic
+fallbacks for the ported natives fail the gate. Core without the self-test does
+not claim tested controls. Pending pacing/query/driver work stays explicit.
+168 unit tests pass, including 14 new FSM evidence-gate tests.
+
+Private patch 0022: 29,342 bytes, SHA-256
+`a3541cadcf5ae3b513b2feaa1542b384d5bf75721a74495ab0a89ea9d96d0a2b`.
+Exact reverse/forward replay passes in an independent scratch Git root with
+`git -c core.autocrlf=false apply`; a new CRLF include file is part of the patch.
+Loader `GearGame-JudgmentLoader-ws22-fsm-core-v2.exe`: 59,490,304 bytes,
+SHA-256 `064DBFF6B50DDD4985C84822195DADB5BC971C7E1C17CBE51050BDF513DB4504`.
+The 100-second NullRHI run passes startup/objective/squad/director and detached
+FSM proofs with 11,374 exact loads, 15 paired ticks (last 98.60 s), seven levels
+and no framing/fatal errors. Tag: `ws22-fsm-selftest-null-20260930`; the final
+new-gate report is retained privately as `fsm-core-null-final.validation.json`.
+
+## Session XXX: narrow-desktop startup and rendered FSM validation (2026-10-01)
+
+After the desktop changed to 600x1284, the ws22 D3D9 run and flag-off suite stop
+before loading the mission: the engine rejects desktop widths below 640.
+These failed attempts remain under tags `ws22-fsm-selftest-render-20261001`
+and `ws22-baseline-control-20261001`. This differs from the earlier ws21
+late-presentation gap, whose cause remains unresolved.
+
+Private patch `0023-ws-window-resolution.patch` scopes a startup exception to
+Judgment package version 845. NullRHI does not require a physical display.
+For rendering, `-JUDGWINDOWRESOLUTION` additionally requires explicit windowed
+mode and ResX/ResY at least 640x480. The existing check remains for other cases.
+No desktop setting is changed. The engine can still resize the actual window
+to fit the desktop; requested and presented dimensions are distinct.
+The regression harness exposes this through `-WindowResolution` with D3D9.
+
+Patch 0023: 1,590 bytes, SHA-256
+`815b5878792a6a013accea79aeb8cec5306abf9f554b4b490ce0f2e8d5e19526`.
+Exact-byte reverse/forward replay passes. Loader
+`GearGame-JudgmentLoader-ws23-window-fsm.exe`: 59,490,816 bytes, SHA-256
+`C503C714F4EE9E750A4EB938DFFDDAB371B06822228CE55D8188C129E76685E7`.
+The 100-second D3D9 test passes every startup/objective/squad/director/FSM gate:
+11,374 exact loads, 14 paired ticks (last 95.03 s, game time 63.205 s), seven
+levels and 3,372 presentations (last 95.96 s). Requested window size is 1280x720;
+presentations are 594x334 on the narrow desktop. Tag:
+`ws23-fsm-selftest-render-20261001`. There are no native framing/fatal errors.
+
+```powershell
+./run_loader_regressions.ps1 -Exe GearGame-JudgmentLoader-ws23-window-fsm.exe -Cases sp_e2_p -BootSeconds 100 -Renderer D3D9 -WindowResolution -CampaignStartup -AIPrototype -AISquadTrace -DirectorInit -FSMCore -FSMSelfTest -MaterialTrace
+```
+
+The harness still defaults to ws18. The new timer/event core is tested on the
+detached object; live director/FSM update integration, four pacing OnEnter
+bodies, the other three conditions, ETQ/spawn queries and goal selection remain
+pending. Input, encounters and checkpoint restore are unverified. All source,
+content and runtime work remains in the separate Judgment copy.
+
+
+The ws23 flag-off suite (`ws23-baseline-control-20261001`) passes PkgInfo, the
+thin map and SP_E2_P. All three experimental AI/director/FSM reports are absent;
+the original accessor/director generic fallbacks remain. SP_E2_P preserves
+objective 1 and the original squad, with 11,374 exact loads and ten paired
+ticks through 71.03 seconds. The new Judgment-only headless resolution path
+works on the narrow desktop. A separate initializer/accessor-on, FSM-off run
+(`ws23-director-core-off-20261001`) passes with the original inactive machine,
+12 bindings and owner intact, 11,374 exact loads and ten ticks through 71.10 s.
+The common Init refactor therefore preserves the prior guarded initializer.
+
+Protection audit note: the September 30 fingerprint no longer matches the
+campaign trees. At the October 1 snapshot, 20,811 files are present, with 600
+historical differences (536 added, 9 removed, 55 altered), including six shared
+source files. The user's separate active “Validate Gears 3 fixes and UI” task
+is building/deploying campaign/UI/razor fixes in those trees. This Judgment
+session writes only its independent workspace, tooling and scratch evidence;
+no campaign changes are reverted or copied into Judgment. The previous audit
+and complete difference report are retained, along with a new timestamped
+snapshot. A global zero-change claim is not made while that campaign task runs.
+
+
+The ws23 D3D9 flag-off negative control (`ws23-window-flag-off-20261001`)
+retains the original minimum-desktop-resolution exit at 600 pixels wide,
+before any native mission load. Its harness FAIL is the expected result for
+this negative control. The explicit-window exception therefore remains opt-in.

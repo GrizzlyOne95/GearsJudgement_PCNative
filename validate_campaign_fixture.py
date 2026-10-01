@@ -161,6 +161,93 @@ def audit_companion_squads(text, player_controller):
             "player_array_entry_verified": False, "movement_or_encounter_verified": False}
 
 
+def audit_fsm_core(text, director=None):
+    """Validate detached controls and original-code numeric probes, not live pacing."""
+    enabled = "-JUDGFSMCORE" in text
+    self_test = "-JUDGFSMSELFTEST" in text
+    if not enabled:
+        if self_test or "[JUDGFSM]" in text or "[JUDGFSMTEST]" in text:
+            raise GraphError("FSM experiment ran without its explicit core flag")
+        return None
+    if director is None:
+        raise GraphError("FSM experiment requires verified original director initialization")
+    partial = re.findall(
+        r"\[JUDGFSM\]\[PARTIAL\] core=(\d+) director-timer=(\d+) relax-condition=(\d+) "
+        r"live-director-tick=(\d+) pacing-enter-pending=(\d+) query-pending=(\d+)", text)
+    if partial != [("1", "1", "1", "0", "4", "1")]:
+        raise GraphError("FSM experiment lacks its complete pending-work disclosure")
+    if re.search(
+            r"\[JUDGBIND\]\[STUB\] cls=(?:FiniteStateMachine#\d+ func="
+            r"(?:Init|Activate|Deactivate|Pause|OnWorldEvent|ForceTransitionToState|"
+            r"ForceTransitionToStateIndex|GetCurrentStateCommandClass)|FSM_AIDirector#\d+ func="
+            r"(?:RelaxCondition|BuildUpOnLeave|PeakSustainOnLeave|PeakFadeOnLeave|RelaxOnLeave))(?:\s|$)", text):
+        raise GraphError("ported FSM native still used the generic fallback")
+    report = {"status": "experimental-fsm-core-only",
+              "detached_self_test_verified": False, "control_cases": [],
+              "original_code_numeric_cases": 0,
+              "live_director_tick_implemented": False,
+              "pacing_enter_callbacks_implemented": False,
+              "pacing_enter_callbacks_pending": 4, "native_queries_implemented": False,
+              "state_command_class_path_verified": False, "encounter_verified": False}
+    if not self_test:
+        if "[JUDGFSMTEST]" in text:
+            raise GraphError("detached FSM test ran without its explicit self-test flag")
+        return report
+    cases = list(re.finditer(
+        r"\[JUDGFSMTEST\] case=(\S+) status=(\d+) state=(\d+) queued=(\d+) "
+        r"remaining=(-?[0-9.]+) enter=(\d+) leave=(\d+)", text))
+    expected = [
+        ("condition-before-timer", "4", "0", "0", "-0.250", "1", "0"),
+        ("expired-event-transition", "4", "1", "0", "-0.250", "2", "1"),
+        ("pause-preserves-event-and-time", "3", "1", "1", "-0.250", "2", "1"),
+        ("resume-does-not-reenter", "4", "1", "1", "-0.250", "2", "1"),
+        ("resumed-event-transition", "4", "2", "0", "-0.500", "3", "2"),
+        ("forced-and-invalid-state-controls", "4", "0", "0", "-0.500", "5", "4"),
+        ("no-event-does-not-transition", "4", "0", "0", "-0.750", "5", "4"),
+        ("inactive-preserves-event-and-time", "2", "0", "1", "-0.750", "5", "5"),
+        ("force-while-inactive", "2", "1", "1", "-0.750", "6", "6"),
+        ("reactivate-resets-initial-state", "4", "0", "1", "-0.750", "7", "6"),
+        ("transition-priority-over-event-order", "4", "1", "0", "-0.750", "8", "7"),
+        ("wildcard-event-transition", "4", "1", "0", "-0.750", "10", "9"),
+    ]
+    if [m.groups() for m in cases] != expected:
+        raise GraphError("detached FSM controls differ from original state/event/timer contracts")
+    numeric = list(re.finditer(
+        r"\[JUDGFSMTEST\] oracle kind=(relax|timer) index=(\d+) input=(-?[a-f0-9.]+) "
+        r"(?:delta=(-?[0-9.]+) )?result=([a-f0-9]+)", text))
+    # Retained original PPC execution: nine condition and six timer boundaries.
+    condition = [("3f800000", "0"), ("3e800000", "0"), ("00000000", "1"),
+                 ("80000000", "1"), ("be800000", "1"), ("bf800000", "1"),
+                 ("7f800000", "0"), ("ff800000", "1"), ("7fc00000", "1")]
+    timers = [("0.250", "0.500", "be800000"), ("0.000", "0.500", "bf000000"),
+              ("-0.250", "0.500", "bf400000"), ("1.000", "0.000", "3f800000"),
+              ("1.000", "-0.500", "3fc00000"), ("1.000", "1.000", "00000000")]
+    expected_numeric = [("relax", str(i), value, None, result)
+                        for i, (value, result) in enumerate(condition)]
+    expected_numeric += [("timer", str(i), value, delta, result)
+                         for i, (value, delta, result) in enumerate(timers)]
+    if [m.groups() for m in numeric] != expected_numeric:
+        raise GraphError("PC FSM numeric probes differ from retained original PPC execution")
+    complete = list(re.finditer(
+        r"\[JUDGFSMTEST\] complete cases=(\d+) shadow=(\S+) class=(\S+) live-fsm=(\S+) "
+        r"detached=(\d+) live-unchanged=(\d+) command-class=(\S+) oracle-cases=(\d+) encounter=(\d+)", text))
+    if len(complete) != 1:
+        raise GraphError("missing or repeated detached FSM completion proof")
+    count, shadow, cls, live, detached, unchanged, command, oracle, encounter = complete[0].groups()
+    if ((count, cls, live, detached, unchanged, command, oracle, encounter) !=
+            ("12", "GearGame.FSM_AIDirector", director["fsm"], "1", "1", "None", "15", "0")
+            or not re.fullmatch(r"Transient\.FSM_AIDirector_\d+", shadow) or shadow == live):
+        raise GraphError("FSM test was not detached or changed the live director/machine")
+    if (text.count("[JUDGFSMTEST]") != 28 or cases[-1].end() > numeric[0].start()
+            or numeric[-1].end() > complete[0].start()):
+        raise GraphError("FSM test trace is repeated, incomplete or out of order")
+    report.update(status="experimental-detached-fsm-self-test",
+                  detached_self_test_verified=True, live_objects_unchanged=True,
+                  shadow=shadow, live_fsm=live,
+                  control_cases=[row[0] for row in expected], original_code_numeric_cases=15)
+    return report
+
+
 def audit_log(text, graphs):
     if "-JUDGSEQUENCETRACE" not in text or "[JUDGSEQ] trace-limit" in text:
         raise GraphError("missing or truncated campaign execution trace")
@@ -238,6 +325,7 @@ def audit_log(text, graphs):
         stubs[key] = max(stubs.get(key, 0), int(match[3]))
     warnings = Counter(re.findall(r"ScriptWarning:[^\n]*\n[^\n]*\n\s*Function ([^\r\n]+)", text))
     ai_layer = audit_ai_accessor_layer(text)
+    director = audit_director_initialization(text, ai_layer["smart_spawner"] if ai_layer else None)
     return {
         "milestone": "original-startup-and-first-active-objective",
         "exact_native_loads": len(native_loads), "operation_reports": dict(counts),
@@ -248,8 +336,8 @@ def audit_log(text, graphs):
         "fallback_counts_are_reported_thresholds": True,
         "script_warnings_by_function": dict(warnings.most_common()),
         "experimental_ai_accessor_layer": ai_layer,
-        "experimental_director_initialization": audit_director_initialization(
-            text, ai_layer["smart_spawner"] if ai_layer else None),
+        "experimental_director_initialization": director,
+        "experimental_fsm_core": audit_fsm_core(text, director),
         "companion_squad_membership": audit_companion_squads(text, state[1].rsplit(".", 1)[0]),
         "checkpoint_save_restore_verified": False, "encounter_verified": False,
     }
