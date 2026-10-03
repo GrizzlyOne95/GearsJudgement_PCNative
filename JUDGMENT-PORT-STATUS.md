@@ -1,5 +1,51 @@
 # Judgment native-port - build-tree status
 
+## Session XXXI (2026-10-03): first interactive run, color grading, level textures
+
+First visible, hands-on run (ws23, 1280x720 on a 2560x1440 desktop). Verified by
+sending real input: W moves Baird, the mouse turns the camera, Tab opens the
+console and `exit` shuts down cleanly ("Log file closed"). Subtitles for the
+startup dialogue appear. Collision, cover, firing and enemies remain unverified.
+
+The blue, solarized image was not lighting or texture decoding. `ColorGrading -1`
+names the active table as `TB_Assets_Jack_Epilogue.Oilrig.LUT_OilRig_Exterior`
+in SP_E2_W, whose textures had never been converted; with `ColorGrading 0` or
+`show postprocess` the scene was already correctly colored. Converting SP_E2_W's
+seven textures fixes the color at default settings.
+
+`judgment-native\convert_map_textures.py` now drives the probe and
+`replace_texture_pixels.py` over every plain Texture2D in a converted map
+(fixtures keyed by export index; rejected textures are reported and left as
+converted). Recovered: SP_E2_W 7/7, SP_E2_01 258/270, SP_E2_02 94/96,
+SP_E2_01_S 15/16, SP_E2_02_S 30/32. All 17 rejections are "texture has no mip
+data". Staged maps are the `*.textures-v1-20261003.le.xxx` artifacts in
+`_judgment-scratch\e2-surface`; fixtures are under `w-texture-fixtures-v1` and
+`streamed-texture-fixtures-v1`.
+
+Private patch 0024-ws-resident-inline-textures.patch: with the Judgment opt-in,
+`UTexture2D::CreateResource` no longer asserts when a converted texture's
+forced-export group (for example `QD_JacintoG3`) has no PC package file; the
+texture stays resident. Without it ws23 dies loading the converted SP_E2_01.
+Loader: `GearGame-JudgmentLoader-ws24-resident-textures.exe`, 59,491,328 bytes,
+SHA-256 0700C431AAD9D02031BD505AD04F9810A4DA422FB32FB706FC13665BDBF2938E.
+A 60-second D3D9 run passes 11,374 exact loads, zero mismatches, no fatal error.
+
+What the picture shows now: characters and props whose materials have Gears 3
+PC parents (papers, cups, barrels, crates) are textured. Walls and floors are
+black even with `viewmode unlit`, fog off and post-processing off, so their
+materials produce no color. Hypothesis, not yet verified: Judgment-only
+materials have no PC shaders (the Xbox shader cache is skipped). LightMapTexture2D
+and ShadowMapTexture2D exports still log "Corrupt texture ... Missing bulk
+data" (334 and 161 lines); the probe and writer accept only class Texture2D.
+
+Engine source is now in a local-only Git repository at `Development\Src`
+(branch `judgment-src`, tag `ws23-baseline`, never to be given a remote);
+`GearGame\Config` likewise. `judgment-native\run_visible.ps1` launches a visible
+window with optional startup console commands (`-ExecLines`, written to
+`Binaries\judgexec-<tag>.txt`) and captures only the game window. Gears 3
+protection baseline for this session:
+`_judgment-scratch\campaign-protection-20261003-session-start.json`.
+
 ## Sessions XXIX–XXX (2026-10-01): FSM core and narrow-desktop startup
 
 Private patch 0022-ws-fsm-core-prototype.patch adds original FSM VM controls,
