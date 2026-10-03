@@ -235,88 +235,116 @@ def properties(package, parsed, require_tail=True):
     return result, format_name
 
 
-def replace(package_bytes, fixtures):
+def recover(original, entry, fixture, offset):
+    """Build one texture's replacement payload for placement at `offset`."""
+    source = texture(original, entry)
+    old_props, fmt = properties(original, source, require_tail=False)
+    pc = Package(fixture)
+    if pc.version != 828 or len(pc.exports) != 1 or pc.exports[0].name != entry.name:
+        raise ValueError("fixture must be a v828 package containing the matching texture")
+    recovered = texture(pc, pc.exports[0])
+    new_props, new_fmt = properties(pc, recovered)
+    if new_fmt != fmt or recovered.guid != source.guid:
+        raise ValueError("fixture pixel format or texture GUID differs from source")
+    if source.source_art[1:3] != (0, 0) or recovered.source_art[:3] != (0, 0, 0):
+        raise ValueError("requires empty SourceArt")
+    for name in ("OriginalSizeX", "OriginalSizeY"):
+        if old_props[name].value != new_props[name].value:
+            raise ValueError("fixture authored dimensions differ")
+    width, height = (i32(new_props[name].value, 0) for name in ("SizeX", "SizeY"))
+    old_sizes = [(w, h) for w, h, _ in source.mips]
+    sizes = [(w, h) for w, h, _ in recovered.mips]
+    # A stripped high-resolution prefix is valid; a different geometry is not.
+    if len(sizes) > len(old_sizes) or sizes != old_sizes[len(old_sizes) - len(sizes):]:
+        raise ValueError("fixture mip geometry differs from resident source chain")
+    omitted = len(old_sizes) - len(sizes)
+    if any(m[2][:4] != (0x21, 0, -1, -1) for m in source.mips[:omitted]):
+        raise ValueError("fixture omits a resident source mip")
+    if width <= 0 or height <= 0 or width & (width - 1) or height & (height - 1):
+        raise ValueError("requires power-of-two texture dimensions")
+    single_mip = len(source.mips) == len(sizes) == 1
+    if sizes[0] != (width, height) or (not single_mip and len(sizes) != max(width, height).bit_length()):
+        raise ValueError("fixture must contain a complete PC mip chain")
+    if i32(new_props["MipTailBaseIdx"].value, 0) != len(sizes) - 1:
+        raise ValueError("fixture still uses a packed mip tail")
+    bx, by, stride = FORMATS[fmt]
+    for w, h, stored in recovered.mips:
+        required_size = ((w + bx - 1) // bx) * ((h + by - 1) // by) * stride
+        if stored[:3] != (0, required_size, required_size) or stored[4] is None:
+            raise ValueError("fixture mip is not exact uncompressed inline PC data")
+    payload = bytearray(source.net_index)
+    preserved = []
+    for tag in source.tags:
+        if tag.name in REMOVE:
+            continue
+        raw = bytearray(tag.raw)
+        if tag.name in ("SizeX", "SizeY", "MipTailBaseIdx") and tag.array_index == 0:
+            raw[tag.value_offset:tag.value_offset + 4] = new_props[tag.name].value
+        else:
+            preserved.append((tag.name, tag.array_index))
+        payload += raw
+    payload += source.terminator
+
+    def inline(pixels):
+        absolute = offset + len(payload) + 16
+        if absolute + len(pixels) >= 0x80000000:
+            raise ValueError("appended bulk exceeds signed package offsets")
+        payload.extend(struct.pack("<4i", 0, len(pixels), len(pixels), absolute))
+        payload.extend(pixels)
+
+    inline(b"")
+    payload += struct.pack("<i", len(recovered.mips))
+    for w, h, stored in recovered.mips:
+        inline(stored[4])
+        payload += struct.pack("<2i", w, h)
+    payload += source.guid + struct.pack("<i", 0)
+    return payload, {"export_index": entry.index, "name": entry.name, "format": fmt,
+                     "old_offset": entry.offset, "old_size": entry.size,
+                     "new_offset": offset, "new_size": len(payload),
+                     "mips": len(recovered.mips), "base_dimensions": [width, height],
+                     "linear_bytes": sum(len(m[2][4]) for m in recovered.mips),
+                     "preserved_properties": preserved,
+                     "fixture_sha256": hashlib.sha256(fixture).hexdigest()}
+
+
+def replace(package_bytes, fixtures, rejected=None):
+    """Append recovered mips for the fixtures' textures.
+
+    `fixtures` maps every plain Texture2D's unique object name to its fixture.
+    Streamed maps repeat object names across groups, so a mapping keyed by
+    export index is accepted instead and may cover a subset. With a `rejected`
+    list, a texture whose fixture fails validation is recorded there and left
+    exactly as converted rather than aborting the package.
+    """
     original = Package(package_bytes)
     if original.version != 845:
         raise ValueError("destination must remain Judgment v845")
     textures = [e for e in original.exports if original.class_name(e) == "Texture2D"]
-    if len({e.name for e in textures}) != len(textures) or set(fixtures) != {e.name for e in textures}:
-        raise ValueError("fixtures must match every texture exactly once")
+    if fixtures and all(isinstance(key, int) for key in fixtures):
+        if not set(fixtures) <= {e.index for e in textures}:
+            raise ValueError("fixture index does not name a Texture2D export")
+        textures = [e for e in textures if e.index in fixtures]
+        selected = fixtures
+    else:
+        if len({e.name for e in textures}) != len(textures) or set(fixtures) != {e.name for e in textures}:
+            raise ValueError("fixtures must match every texture exactly once")
+        selected = {e.index: fixtures[e.name] for e in textures}
     if not textures:
         raise ValueError("no texture exports")
     output, records = bytearray(package_bytes), []
     for entry in textures:
-        source = texture(original, entry)
-        old_props, fmt = properties(original, source, require_tail=False)
-        pc = Package(fixtures[entry.name])
-        if pc.version != 828 or len(pc.exports) != 1 or pc.exports[0].name != entry.name:
-            raise ValueError("fixture must be a v828 package containing the matching texture")
-        recovered = texture(pc, pc.exports[0])
-        new_props, new_fmt = properties(pc, recovered)
-        if new_fmt != fmt or recovered.guid != source.guid:
-            raise ValueError("fixture pixel format or texture GUID differs from source")
-        if source.source_art[1:3] != (0, 0) or recovered.source_art[:3] != (0, 0, 0):
-            raise ValueError("requires empty SourceArt")
-        for name in ("OriginalSizeX", "OriginalSizeY"):
-            if old_props[name].value != new_props[name].value:
-                raise ValueError("fixture authored dimensions differ")
-        width, height = (i32(new_props[name].value, 0) for name in ("SizeX", "SizeY"))
-        old_sizes = [(w, h) for w, h, _ in source.mips]
-        sizes = [(w, h) for w, h, _ in recovered.mips]
-        # A stripped high-resolution prefix is valid; a different geometry is not.
-        if len(sizes) > len(old_sizes) or sizes != old_sizes[len(old_sizes) - len(sizes):]:
-            raise ValueError("fixture mip geometry differs from resident source chain")
-        omitted = len(old_sizes) - len(sizes)
-        if any(m[2][:4] != (0x21, 0, -1, -1) for m in source.mips[:omitted]):
-            raise ValueError("fixture omits a resident source mip")
-        if width <= 0 or height <= 0 or width & (width - 1) or height & (height - 1):
-            raise ValueError("requires power-of-two texture dimensions")
-        single_mip = len(source.mips) == len(sizes) == 1
-        if sizes[0] != (width, height) or (not single_mip and len(sizes) != max(width, height).bit_length()):
-            raise ValueError("fixture must contain a complete PC mip chain")
-        if i32(new_props["MipTailBaseIdx"].value, 0) != len(sizes) - 1:
-            raise ValueError("fixture still uses a packed mip tail")
-        bx, by, stride = FORMATS[fmt]
-        for w, h, stored in recovered.mips:
-            required_size = ((w + bx - 1) // bx) * ((h + by - 1) // by) * stride
-            if stored[:3] != (0, required_size, required_size) or stored[4] is None:
-                raise ValueError("fixture mip is not exact uncompressed inline PC data")
         offset = len(output)
-        payload = bytearray(source.net_index)
-        preserved = []
-        for tag in source.tags:
-            if tag.name in REMOVE:
-                continue
-            raw = bytearray(tag.raw)
-            if tag.name in ("SizeX", "SizeY", "MipTailBaseIdx") and tag.array_index == 0:
-                raw[tag.value_offset:tag.value_offset + 4] = new_props[tag.name].value
-            else:
-                preserved.append((tag.name, tag.array_index))
-            payload += raw
-        payload += source.terminator
-
-        def inline(pixels):
-            absolute = offset + len(payload) + 16
-            if absolute + len(pixels) >= 0x80000000:
-                raise ValueError("appended bulk exceeds signed package offsets")
-            payload.extend(struct.pack("<4i", 0, len(pixels), len(pixels), absolute))
-            payload.extend(pixels)
-
-        inline(b"")
-        payload += struct.pack("<i", len(recovered.mips))
-        for w, h, stored in recovered.mips:
-            inline(stored[4])
-            payload += struct.pack("<2i", w, h)
-        payload += source.guid + struct.pack("<i", 0)
+        try:
+            payload, record = recover(original, entry, selected[entry.index], offset)
+        except ValueError as error:
+            if rejected is None:
+                raise
+            rejected.append({"export_index": entry.index, "name": entry.name,
+                             "stage": "writer", "reason": str(error)})
+            continue
         output += payload
         struct.pack_into("<2i", output, entry.table_offset + 32, len(payload), offset)
-        records.append({"export_index": entry.index, "name": entry.name, "format": fmt,
-                        "old_offset": entry.offset, "old_size": entry.size,
-                        "new_offset": offset, "new_size": len(payload),
-                        "mips": len(recovered.mips), "base_dimensions": [width, height],
-                        "linear_bytes": sum(len(m[2][4]) for m in recovered.mips),
-                        "preserved_properties": preserved,
-                        "fixture_sha256": hashlib.sha256(fixtures[entry.name]).hexdigest()})
+        records.append(record)
     # Re-read final absolute bulk offsets, with all original indices still valid.
     final = Package(output)
     for record in records:
