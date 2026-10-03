@@ -137,6 +137,15 @@ cache/resource-memory properties, and appends precisely framed PC mips. Object a
 other exports and their physical offsets stay fixed. `../validate_texture_fixture.py` independently
 checks probe-reported ranges, mip bytes, retained tags and the complete original file prefix.
 
+Both texture commands also accept `LightMapTexture2D` and `ShadowMapTexture2D` source exports. After
+the cached-PVRTC count the probe tolerates exactly the class's trailer and fails closed on any other
+remainder: 4 bytes (`LightmapFlags`) for lightmaps, 0 for shadow maps (measured on every such export
+of SP_E2_01, SP_E2_02, SP_E2_01_S and SP_E2_02_S, and consistent with `be2le.py`'s tail models). The
+emitted fixture is still a plain `Texture2D` package; the writer re-appends the destination's own
+trailer bytes. These classes never serialize `OriginalSizeX/Y`, so the probe does not require them
+(plain textures still do) and the fixture omits them. A light/shadow map with no `TextureFileCacheName`
+(`NeverStream`, resident levels stored inline in the package) is rejected rather than guessed.
+
 The `GuidCache` converter is intentionally not a generic package converter. It accepts only the
 observed uncompressed, big-endian v845 package with one `GuidCache` export. It rewrites the v828
 summary, name/import/export/dependency tables, `UObject` header, and all

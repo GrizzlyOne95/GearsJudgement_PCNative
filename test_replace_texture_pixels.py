@@ -5,19 +5,22 @@ from extract_asset_package import summary
 from replace_texture_pixels import Package, replace, texture
 
 
-def fixture(version, *, guid=bytes(range(16)), missing_top=False, unsafe_bulk=False, single_mip=False):
+def fixture(version, *, guid=bytes(range(16)), missing_top=False, unsafe_bulk=False, single_mip=False,
+            cls="Texture2D", trailer=b"", original=True):
+    """`cls`/`trailer` set the destination's class import and native tail; light/shadow maps omit OriginalSizeX/Y."""
     names = ["None", "Core", "Class", "Package", "Engine", "Texture2D", "Material", "Hero",
              "Other", "SizeX", "SizeY", "OriginalSizeX", "OriginalSizeY", "Format",
              "MipTailBaseIdx", "IntProperty", "ByteProperty", "NameProperty", "BoolProperty",
              "FloatProperty", "EPixelFormat", "PF_DXT1", "TextureFileCacheName", "CharTextures",
-             "FirstResourceMemMip", "SRGB", "UnpackMin"]
+             "FirstResourceMemMip", "SRGB", "UnpackMin", "LightMapTexture2D", "ShadowMapTexture2D"]
     n = {s: i for i, s in enumerate(names)}
     fname = lambda s: struct.pack("<2i", n[s], 0)
     def tag(name, kind, value, array=0, extra=b""):
         return fname(name) + fname(kind) + struct.pack("<2i", len(value), array) + extra + value
     width = 4 if missing_top else 8
     props = b"".join(tag(s, "IntProperty", struct.pack("<i", width if s in ("SizeX", "SizeY") else 8))
-                     for s in ("SizeX", "SizeY", "OriginalSizeX", "OriginalSizeY"))
+                     for s in ("SizeX", "SizeY", "OriginalSizeX", "OriginalSizeY")
+                     if original or s in ("SizeX", "SizeY"))
     props += tag("Format", "ByteProperty", fname("PF_DXT1"), extra=fname("EPixelFormat"))
     levels = [8] if single_mip else [8, 4, 4, 4] if not missing_top else [4, 4, 4]
     if not (single_mip and version == 845):
@@ -39,10 +42,10 @@ def fixture(version, *, guid=bytes(range(16)), missing_top=False, unsafe_bulk=Fa
             off = 2048 + len(payload) + 16
             payload += struct.pack("<4i", 0, count, count, off + int(unsafe_bulk)) + bytes([index + 31]) * count
         payload += struct.pack("<2i", w, w)
-    payload += guid + bytes(4)
+    payload += guid + bytes(4) + trailer
     name_bytes = b"".join(struct.pack("<i", len(s) + 1) + s.encode() + b"\0" + bytes(8) for s in names)
     import_bytes = (fname("Core") + fname("Package") + struct.pack("<i", 0) + fname("Engine") +
-                    fname("Core") + fname("Class") + struct.pack("<i", -1) + fname("Texture2D") +
+                    fname("Core") + fname("Class") + struct.pack("<i", -1) + fname(cls) +
                     fname("Core") + fname("Class") + struct.pack("<i", -1) + fname("Material"))
     other = b"Unrelated payload: \x00\x08\x00\x00 and physical padding."
     bodies = [payload, other] if version == 845 else [payload]
@@ -159,6 +162,82 @@ class TextureReplacementTests(unittest.TestCase):
         struct.pack_into("<i", broken, pos + tag.value_offset, 4)
         with self.assertRaisesRegex(ValueError, "complete PC mip chain"):
             replace(source, {"Hero": bytes(broken)})
+
+
+FLAGS = struct.pack("<I", 1)
+
+
+class LightAndShadowMapTests(unittest.TestCase):
+    def source(self, cls, trailer):
+        return fixture(845, cls=cls, trailer=trailer, original=False)
+
+    def test_lightmap_trailer_is_preserved_unchanged_after_the_new_mips(self):
+        source, recovered = self.source("LightMapTexture2D", FLAGS), fixture(828, original=False)
+        output, report = replace(source, {0: recovered})
+        pc = Package(output)
+        entry = pc.exports[0]
+        parsed = texture(pc, entry)
+        self.assertEqual((parsed.cls, parsed.trailer), ("LightMapTexture2D", FLAGS))
+        self.assertEqual(output[entry.offset + entry.size - 4:entry.offset + entry.size], FLAGS)
+        self.assertEqual([m[2][4] for m in parsed.mips],
+                         [bytes([31]) * 32, bytes([32]) * 8, bytes([33]) * 8, bytes([34]) * 8])
+        self.assertFalse({t.name for t in parsed.tags} & ({"TextureFileCacheName", "FirstResourceMemMip"} |
+                                                          {"OriginalSizeX", "OriginalSizeY"}))
+        self.assertEqual(report["recovered_by_class"],
+                         {"Texture2D": 0, "LightMapTexture2D": 1, "ShadowMapTexture2D": 0})
+        self.assertEqual((report["textures"][0]["class"], report["textures"][0]["trailer_bytes"]),
+                         ("LightMapTexture2D", 4))
+
+    def test_destination_trailer_value_is_kept_not_defaulted(self):
+        source = self.source("LightMapTexture2D", struct.pack("<I", 0x12345678))
+        pc = Package(replace(source, {0: fixture(828, original=False)})[0])
+        self.assertEqual(texture(pc, pc.exports[0]).trailer, struct.pack("<I", 0x12345678))
+
+    def test_shadowmap_has_no_trailer(self):
+        source = self.source("ShadowMapTexture2D", b"")
+        output, report = replace(source, {0: fixture(828, original=False)})
+        pc = Package(output)
+        parsed = texture(pc, pc.exports[0])
+        self.assertEqual((parsed.cls, parsed.trailer, len(parsed.mips)), ("ShadowMapTexture2D", b"", 4))
+        self.assertEqual(report["recovered_by_class"]["ShadowMapTexture2D"], 1)
+        pc_end = pc.exports[0].offset + pc.exports[0].size
+        self.assertEqual(output[pc_end - 20:pc_end], parsed.guid + bytes(4))
+
+    def test_wrong_trailer_length_rejected(self):
+        for cls, trailer in (("LightMapTexture2D", b""), ("LightMapTexture2D", bytes(8)),
+                             ("ShadowMapTexture2D", FLAGS), ("Texture2D", FLAGS)):
+            source = self.source(cls, trailer)
+            package = Package(source)
+            with self.assertRaisesRegex(ValueError, "trailer"):
+                texture(package, package.exports[0])
+            with self.assertRaisesRegex(ValueError, "exact .*-byte %s trailer, found %d" % (cls, len(trailer))):
+                replace(source, {0: fixture(828, original=False)})
+            rejected = []
+            output, report = replace(source, {0: fixture(828, original=False)}, rejected)
+            self.assertEqual((output, report["textures_recovered"]), (source, 0))
+            self.assertEqual([(r["class"], r["stage"]) for r in rejected], [(cls, "writer")])
+
+    def test_fixture_must_be_plain_and_trailerless(self):
+        source = self.source("LightMapTexture2D", FLAGS)
+        with self.assertRaisesRegex(ValueError, "Texture2D trailer, found 4"):
+            replace(source, {0: fixture(828, original=False, trailer=FLAGS)})
+        with self.assertRaisesRegex(ValueError, "matching texture"):
+            replace(source, {0: fixture(828, original=False, cls="LightMapTexture2D", trailer=FLAGS)})
+
+    def test_original_size_presence_must_agree_and_stays_required_for_plain_textures(self):
+        with self.assertRaisesRegex(ValueError, "authored dimensions differ"):
+            replace(self.source("LightMapTexture2D", FLAGS), {0: fixture(828)})
+        with self.assertRaisesRegex(ValueError, "authored dimensions differ"):
+            replace(fixture(845, cls="ShadowMapTexture2D"), {0: fixture(828, original=False)})
+        with self.assertRaisesRegex(ValueError, "missing required"):
+            replace(fixture(845, original=False), {0: fixture(828, original=False)})
+
+    def test_name_keyed_selection_stays_plain_texture_only(self):
+        source = self.source("LightMapTexture2D", FLAGS)
+        with self.assertRaisesRegex(ValueError, "every texture"):
+            replace(source, {"Hero": fixture(828, original=False)})
+        with self.assertRaisesRegex(ValueError, "does not name a Texture2D"):
+            replace(source, {1: fixture(828, original=False)})
 
 
 if __name__ == "__main__":

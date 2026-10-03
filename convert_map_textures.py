@@ -1,18 +1,18 @@
-"""Recover PC pixels for the plain Texture2D exports of one converted Judgment map.
+"""Recover PC pixels for the Texture2D, LightMapTexture2D and ShadowMapTexture2D exports of one converted map.
 
 Runs the C++ probe once per export (cache LZX, detiling, byte order, mip tails)
 and appends the resulting fixtures to the converted v845 package with
 replace_texture_pixels. A texture the probe or the writer rejects is reported
-and left exactly as converted; nothing is guessed. LightMapTexture2D and
-ShadowMapTexture2D exports carry native trailers and are not handled here.
-Retail inputs and outputs belong outside Git.
+and left exactly as converted; nothing is guessed. The light and shadow map
+classes keep their own native trailer bytes. Retail inputs and outputs belong
+outside Git.
 """
 import argparse
 import json
 from pathlib import Path
 import subprocess
 
-from replace_texture_pixels import Package, replace
+from replace_texture_pixels import Package, TEXTURE_CLASSES, replace
 
 PROBE = Path(__file__).resolve().parent / "package-probe" / "build" / "Release" / "judgment-package-probe.exe"
 
@@ -25,7 +25,8 @@ def fixture_path(directory, entry):
 def recover_fixtures(parsed, source, cache, directory, probe, rejected, run=subprocess.run):
     fixtures = {}
     for entry in parsed.exports:
-        if parsed.class_name(entry) != "Texture2D":
+        cls = parsed.class_name(entry)
+        if cls not in TEXTURE_CLASSES:
             continue
         path = fixture_path(directory, entry)
         if not path.exists():
@@ -33,7 +34,8 @@ def recover_fixtures(parsed, source, cache, directory, probe, rejected, run=subp
                         str(entry.index), str(cache), str(path)], capture_output=True, text=True)
             if done.returncode or not path.exists():
                 lines = (done.stderr or done.stdout or "").strip().splitlines()
-                rejected.append({"export_index": entry.index, "name": entry.name, "stage": "probe",
+                rejected.append({"export_index": entry.index, "name": entry.name, "class": cls,
+                                 "stage": "probe",
                                  "reason": lines[-1].strip() if lines else f"exit {done.returncode}"})
                 continue
         fixtures[entry.index] = path.read_bytes()
@@ -64,8 +66,11 @@ def main():
     receipt.write_text(json.dumps(report, indent=2) + "\n")
     reasons = {}
     for item in rejected:
-        reasons[item["stage"] + ": " + item["reason"]] = reasons.get(item["stage"] + ": " + item["reason"], 0) + 1
+        key = f"{item['class']} {item['stage']}: {item['reason']}"
+        reasons[key] = reasons.get(key, 0) + 1
     print(json.dumps({"textures_recovered": report["textures_recovered"], "textures_rejected": len(rejected),
+                      "recovered_by_class": report["recovered_by_class"],
+                      "rejected_by_class": {c: sum(r["class"] == c for r in rejected) for c in TEXTURE_CLASSES},
                       "rejection_reasons": reasons, "original_bytes": report["original_bytes"],
                       "output_bytes": report["output_bytes"], "output_sha256": report["output_sha256"]}, indent=2))
 

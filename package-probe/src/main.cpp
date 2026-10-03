@@ -3113,15 +3113,31 @@ int convertTextureFixture(const fs::path& input, std::size_t requestedExport,
     }
     const ManifestResolver resolver(sourcePackageName, names, imports, exports);
     const auto& object = exports[requestedExport];
-    if (resolver.resourceName(object.classIndex) != "Texture2D" ||
+    // Plain Texture2D plus the two baked-light subclasses. After the cached-PVRTC count a
+    // LightMapTexture2D carries one DWORD LightmapFlags; the others carry nothing (measured on
+    // every such export of the four SP_E2 maps, and matching be2le's tail models). The emitted
+    // fixture is always a plain Texture2D; the writer re-appends the destination's own trailer.
+    const auto sourceClass = resolver.resourceName(object.classIndex);
+    if ((sourceClass != "Texture2D" && sourceClass != "LightMapTexture2D" &&
+         sourceClass != "ShadowMapTexture2D") ||
         object.classIndex >= 0 || object.serialOffset < 0 || object.serialSize <= 0) {
-      throw ParseError("requested export is not a serialized Texture2D");
+      throw ParseError("requested export is not a serialized Texture2D, LightMapTexture2D or "
+                       "ShadowMapTexture2D");
     }
+    const std::uint64_t sourceTrailerBytes = sourceClass == "LightMapTexture2D" ? 4 : 0;
     const auto classImportIndex = static_cast<std::size_t>(-object.classIndex - 1);
-    if (classImportIndex >= imports.size()) throw ParseError("Texture2D class import is invalid");
-    const auto& textureClassImport = imports[classImportIndex];
-    if (textureClassImport.outerIndex >= 0 || resolver.name(textureClassImport.objectName) != "Texture2D") {
-      throw ParseError("Texture2D class import does not have the expected Engine outer");
+    if (classImportIndex >= imports.size()) throw ParseError(sourceClass + " class import is invalid");
+    const auto& sourceClassImport = imports[classImportIndex];
+    if (sourceClassImport.outerIndex >= 0 || resolver.name(sourceClassImport.objectName) != sourceClass) {
+      throw ParseError(sourceClass + " class import does not have the expected Engine outer");
+    }
+    // The fixture imports Engine.Texture2D whatever the source class was.
+    ManifestImport textureClassImport = sourceClassImport;
+    if (sourceClass != "Texture2D") {
+      const auto plain = std::find_if(names.begin(), names.end(),
+                                      [](const auto& name) { return name.value == "Texture2D"; });
+      if (plain == names.end()) throw ParseError("source name table lacks Texture2D");
+      textureClassImport.objectName = NameRef{static_cast<std::int32_t>(plain - names.begin()), 0};
     }
     const auto engineImportIndex = static_cast<std::size_t>(-textureClassImport.outerIndex - 1);
     if (engineImportIndex >= imports.size()) throw ParseError("Engine package import is invalid");
@@ -3152,6 +3168,12 @@ int convertTextureFixture(const fs::path& input, std::size_t requestedExport,
       (void)scanTextureMip(reader, sourceEnd,
                            "Texture2D cached PVRTC mip " + std::to_string(i));
     }
+    // Tolerate exactly this class's trailer and nothing else.
+    if (reader.position() > sourceEnd || sourceEnd - reader.position() != sourceTrailerBytes) {
+      throw ParseError(sourceClass + " source payload does not close exactly: expected " +
+                       std::to_string(sourceTrailerBytes) + " trailer bytes after the cached PVRTC count");
+    }
+    for (std::uint64_t i = 0; i < sourceTrailerBytes; ++i) (void)reader.u8();
     if (reader.position() != sourceEnd) throw ParseError("Texture2D source payload does not close exactly");
     if (sourceArt.elementCount != 0 || sourceArt.sizeOnDisk != 0 || pvrtcCount != 0) {
       throw ParseError("first texture fixture requires empty SourceArt and cached PVRTC data");
@@ -3203,8 +3225,11 @@ int convertTextureFixture(const fs::path& input, std::size_t requestedExport,
     const std::array<std::string_view, 6> requiredNames{
         "SizeX", "SizeY", "OriginalSizeX", "OriginalSizeY", "Format", "MipTailBaseIdx"};
     for (const auto name : requiredNames) {
+      // Baked light/shadow maps are generated, not authored: they never serialize the zero-default
+      // OriginalSizeX/Y (absent from all 344 such exports measured), so the fixture omits them too.
+      if (sourceClass != "Texture2D" && (name == "OriginalSizeX" || name == "OriginalSizeY")) continue;
       if (!requiredProperties.contains(std::string(name))) {
-        throw ParseError("Texture2D lacks required property '" + std::string(name) + "'");
+        throw ParseError(sourceClass + " lacks required property '" + std::string(name) + "'");
       }
     }
     if (formatProperty == nullptr || !formatProperty->hasNameValue) {
@@ -3630,8 +3655,11 @@ int convertTextureFixture(const fs::path& input, std::size_t requestedExport,
     }
 
     std::cout << "Converted Texture2D fixture " << resolver.exportPath(requestedExport) << "\n"
+              << "  source class:    " << sourceClass << " (" << sourceTrailerBytes
+              << "-byte trailer left to the writer; fixture is plain Texture2D)\n"
               << "  source NetIndex: " << sourceNetIndex << " -> -1 (standalone fixture)\n"
-              << "  properties:      6 preserved; TextureFileCacheName/FirstResourceMemMip removed\n"
+              << "  properties:      " << requiredProperties.size()
+              << " preserved; TextureFileCacheName/FirstResourceMemMip removed\n"
               << "  mips:            " << linearMips.size() << " " << formatName
               << " levels, inline and uncompressed\n"
               << "  linear bytes:    ";

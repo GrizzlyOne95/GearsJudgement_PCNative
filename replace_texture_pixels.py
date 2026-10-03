@@ -4,7 +4,9 @@ The C++ probe handles Xbox cache decompression, endian conversion and detiling.
 This writer consumes its standalone v828 fixtures, retaining the v845 package's
 original tagged settings and every object/name index. Only selected texture
 SerialSize/SerialOffset fields change in the existing file; other payload and
-bulk offsets remain fixed. Retail inputs and outputs belong outside Git.
+bulk offsets remain fixed. LightMapTexture2D/ShadowMapTexture2D exports are
+recovered from the same plain-Texture2D fixtures and keep their own trailer
+bytes. Retail inputs and outputs belong outside Git.
 """
 import argparse
 from dataclasses import dataclass
@@ -21,6 +23,10 @@ FORMATS = {
 }
 REMOVE = {"TextureFileCacheName", "FirstResourceMemMip"}
 REQUIRED = {"SizeX", "SizeY", "OriginalSizeX", "OriginalSizeY", "Format", "MipTailBaseIdx"}
+ORIGINAL_SIZE = {"OriginalSizeX", "OriginalSizeY"}
+# Texture classes and the exact bytes each serializes after the cached-PVRTC count: a
+# LightMapTexture2D's DWORD LightmapFlags; ShadowMapTexture2D adds nothing (measured, v845).
+TEXTURE_CLASSES = {"Texture2D": 0, "LightMapTexture2D": 4, "ShadowMapTexture2D": 0}
 
 
 def i32(data, offset):
@@ -139,11 +145,15 @@ class Texture:
     source_art: tuple
     mips: list
     guid: bytes
+    trailer: bytes
+    cls: str
 
 
 def texture(package, entry):
-    if package.class_name(entry) != "Texture2D" or entry.flags & (0x0200000000000000 | 0x200):
-        raise ValueError("requires a plain Texture2D export")
+    """Parse a Texture2D, LightMapTexture2D or ShadowMapTexture2D export; `trailer` is the class's tail."""
+    cls = package.class_name(entry)
+    if cls not in TEXTURE_CLASSES or entry.flags & (0x0200000000000000 | 0x200):
+        raise ValueError("requires a plain Texture2D, LightMapTexture2D or ShadowMapTexture2D export")
     data, start, end = package.data, entry.offset, entry.offset + entry.size
     pos, tags, seen = start + 4, [], set()
     while pos + 8 <= end:
@@ -208,16 +218,21 @@ def texture(package, entry):
         if width <= 0 or height <= 0:
             raise ValueError("invalid mip dimensions")
         mips.append((width, height, stored))
-    if pos + 20 != end or i32(data, pos + 16):
-        raise ValueError("requires an exact Texture2D tail with no cached PVRTC mips")
-    return Texture(data[start:start + 4], tags, terminator, art, mips, data[pos:pos + 16])
+    if pos + 20 > end or i32(data, pos + 16):
+        raise ValueError(f"requires an exact {cls} tail with no cached PVRTC mips")
+    trailer = data[pos + 20:end]
+    if len(trailer) != TEXTURE_CLASSES[cls]:
+        raise ValueError(f"requires an exact {TEXTURE_CLASSES[cls]}-byte {cls} trailer, found {len(trailer)}")
+    return Texture(data[start:start + 4], tags, terminator, art, mips, data[pos:pos + 16], trailer, cls)
 
 
-def properties(package, parsed, require_tail=True):
+def properties(package, parsed, require_tail=True, require_original=True):
+    """Validate the texture settings; baked light/shadow maps omit the zero-default OriginalSizeX/Y."""
     result = {tag.name: tag for tag in parsed.tags if tag.array_index == 0}
     required = REQUIRED if require_tail else REQUIRED - {"MipTailBaseIdx"}
-    if "MipTailBaseIdx" in result:
-        required = required | {"MipTailBaseIdx"}
+    if not require_original:
+        required = required - ORIGINAL_SIZE
+    required = required | (REQUIRED & result.keys())
     if not required <= result.keys():
         raise ValueError("missing required Texture2D settings")
     for name in required - {"Format"}:
@@ -238,18 +253,23 @@ def properties(package, parsed, require_tail=True):
 def recover(original, entry, fixture, offset):
     """Build one texture's replacement payload for placement at `offset`."""
     source = texture(original, entry)
-    old_props, fmt = properties(original, source, require_tail=False)
+    plain = source.cls == "Texture2D"
+    old_props, fmt = properties(original, source, require_tail=False, require_original=plain)
     pc = Package(fixture)
-    if pc.version != 828 or len(pc.exports) != 1 or pc.exports[0].name != entry.name:
+    # The fixture is always a plain Texture2D (so it has no trailer); the source's trailer is kept below.
+    if (pc.version != 828 or len(pc.exports) != 1 or pc.exports[0].name != entry.name
+            or pc.class_name(pc.exports[0]) != "Texture2D"):
         raise ValueError("fixture must be a v828 package containing the matching texture")
     recovered = texture(pc, pc.exports[0])
-    new_props, new_fmt = properties(pc, recovered)
+    new_props, new_fmt = properties(pc, recovered, require_original=plain)
     if new_fmt != fmt or recovered.guid != source.guid:
         raise ValueError("fixture pixel format or texture GUID differs from source")
     if source.source_art[1:3] != (0, 0) or recovered.source_art[:3] != (0, 0, 0):
         raise ValueError("requires empty SourceArt")
-    for name in ("OriginalSizeX", "OriginalSizeY"):
-        if old_props[name].value != new_props[name].value:
+    for name in sorted(ORIGINAL_SIZE):
+        # Absent in both (baked light/shadow maps) is a match; presence and value must agree.
+        if (old_props[name].value if name in old_props else None) != (
+                new_props[name].value if name in new_props else None):
             raise ValueError("fixture authored dimensions differ")
     width, height = (i32(new_props[name].value, 0) for name in ("SizeX", "SizeY"))
     old_sizes = [(w, h) for w, h, _ in source.mips]
@@ -297,8 +317,9 @@ def recover(original, entry, fixture, offset):
     for w, h, stored in recovered.mips:
         inline(stored[4])
         payload += struct.pack("<2i", w, h)
-    payload += source.guid + struct.pack("<i", 0)
-    return payload, {"export_index": entry.index, "name": entry.name, "format": fmt,
+    payload += source.guid + struct.pack("<i", 0) + source.trailer
+    return payload, {"export_index": entry.index, "name": entry.name, "class": source.cls,
+                     "trailer_bytes": len(source.trailer), "format": fmt,
                      "old_offset": entry.offset, "old_size": entry.size,
                      "new_offset": offset, "new_size": len(payload),
                      "mips": len(recovered.mips), "base_dimensions": [width, height],
@@ -312,17 +333,21 @@ def replace(package_bytes, fixtures, rejected=None):
 
     `fixtures` maps every plain Texture2D's unique object name to its fixture.
     Streamed maps repeat object names across groups, so a mapping keyed by
-    export index is accepted instead and may cover a subset. With a `rejected`
-    list, a texture whose fixture fails validation is recorded there and left
-    exactly as converted rather than aborting the package.
+    export index is accepted instead and may cover a subset; only that mode
+    also selects LightMapTexture2D and ShadowMapTexture2D exports, whose own
+    trailer bytes are kept. With a `rejected` list, a texture whose fixture
+    fails validation is recorded there and left exactly as converted rather
+    than aborting the package.
     """
     original = Package(package_bytes)
     if original.version != 845:
         raise ValueError("destination must remain Judgment v845")
     textures = [e for e in original.exports if original.class_name(e) == "Texture2D"]
     if fixtures and all(isinstance(key, int) for key in fixtures):
+        textures = [e for e in original.exports if original.class_name(e) in TEXTURE_CLASSES]
         if not set(fixtures) <= {e.index for e in textures}:
-            raise ValueError("fixture index does not name a Texture2D export")
+            raise ValueError("fixture index does not name a Texture2D, LightMapTexture2D or "
+                             "ShadowMapTexture2D export")
         textures = [e for e in textures if e.index in fixtures]
         selected = fixtures
     else:
@@ -340,7 +365,7 @@ def replace(package_bytes, fixtures, rejected=None):
             if rejected is None:
                 raise
             rejected.append({"export_index": entry.index, "name": entry.name,
-                             "stage": "writer", "reason": str(error)})
+                             "class": original.class_name(entry), "stage": "writer", "reason": str(error)})
             continue
         output += payload
         struct.pack_into("<2i", output, entry.table_offset + 32, len(payload), offset)
@@ -348,11 +373,15 @@ def replace(package_bytes, fixtures, rejected=None):
     # Re-read final absolute bulk offsets, with all original indices still valid.
     final = Package(output)
     for record in records:
-        texture(final, final.exports[record["export_index"]])
+        index = record["export_index"]
+        after, before = texture(final, final.exports[index]), texture(original, original.exports[index])
+        if (after.cls, after.trailer) != (before.cls, before.trailer):
+            raise ValueError("texture class or trailer changed while recovering export %d" % index)
     report = {"input_sha256": hashlib.sha256(package_bytes).hexdigest(),
               "output_sha256": hashlib.sha256(output).hexdigest(),
               "original_bytes": len(package_bytes), "output_bytes": len(output),
               "exports": len(original.exports), "textures_recovered": len(records),
+              "recovered_by_class": {c: sum(r["class"] == c for r in records) for c in TEXTURE_CLASSES},
               "textures": records}
     return bytes(output), report
 
