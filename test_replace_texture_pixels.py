@@ -133,6 +133,20 @@ class TextureReplacementTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "every texture"):
             replace(fixture(845), {"AnotherHero": fixture(828)})
 
+    def test_export_index_selection_matches_name_selection(self):
+        source, recovered = fixture(845), fixture(828)
+        self.assertEqual(replace(source, {0: recovered})[0], replace(source, {"Hero": recovered})[0])
+        with self.assertRaisesRegex(ValueError, "does not name a Texture2D"):
+            replace(source, {1: recovered})
+
+    def test_rejected_fixture_is_recorded_and_texture_left_as_converted(self):
+        source, rejected = fixture(845), []
+        output, report = replace(source, {0: fixture(828, guid=bytes(16))}, rejected)
+        self.assertEqual(output, source)
+        self.assertEqual(report["textures_recovered"], 0)
+        self.assertEqual([(r["export_index"], r["name"]) for r in rejected], [(0, "Hero")])
+        self.assertIn("GUID differs", rejected[0]["reason"])
+
     def test_truncated_chain_rejected(self):
         source = fixture(845)
         pc = fixture(828)
