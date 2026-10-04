@@ -1095,6 +1095,7 @@ class Converter:
                     "ShadowMap1D": "tail_shadow_map_1d", "DecalComponent": "tail_decal_component",
                     "ModelComponent": "tail_model_component",
                     "PointLightComponent": "tail_light_component", "SpotLightComponent": "tail_light_component",
+                    "DominantPointLightComponent": "tail_light_component",
                     "DirectionalLightComponent": "tail_light_component", "SkyLightComponent": "tail_light_component",
                     "StaticMeshCollectionActor": "tail_static_mesh_collection",
                     "StaticLightCollectionActor": "tail_static_light_collection",
