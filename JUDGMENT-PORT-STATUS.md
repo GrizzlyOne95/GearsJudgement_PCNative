@@ -79,6 +79,20 @@ what leads to an op, what enables an event):
   enabled and objective 4 points at locator 3.
 - Upstairs (teleported): the exterior at (3050, 5251, 715) renders with fog and
   the ambient Kismet (`SP_E2_03_S` RandomSwitch sounds) runs.
+- Rooftop lift (`SP_E2_03_S` `Trigger_2`, 2507, 5347, 1136): the `Elevator_Ride`
+  sequence runs (cinematic mode, Matinee `BADLANDS_CINE_3`), objective 1
+  completes and remote event "Commit Next Level" fires. The commit
+  (`SeqAct_ChapterComplete`, then `SeqAct_CommitMapChange`) waits for
+  "Prepare Next Level" (`SeqAct_PrepareMapChange` to `SP_E2oilrig_P`), which
+  the level fires after the co-op door cinematic ("Checkpoint03 Saved").
+- The level keeps its designers' console events: `ce JTend` fires "Prepare Next
+  Level", `ce CoopDoor1` enables the co-op door; also `JT01`, `ceilingformers`,
+  `gotoplayer` (`getall SeqEvent_Console ConsoleEventName`).
+- `ce JTend` starts loading `SP_E2oilrig_P` and dies in
+  `TArray<FVert>::BulkSerialize` under `UModel::Serialize` ("Expected 24, Got:
+  16"): the package is not in `-JUDGMENTSTREAMINGPACKAGES`, so the Judgment BSP
+  vertex stride is not applied to it. The oilrig packages have to be in that
+  list before the transition can be tested.
 
 Open, found this session:
 
