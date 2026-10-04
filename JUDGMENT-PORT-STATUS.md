@@ -1,6 +1,6 @@
 # Judgment native-port - build-tree status
 
-## Session XXXIII (2026-10-03): combat works; Judgment gameplay config installed
+## Session XXXIII (2026-10-03): combat works; Judgment gameplay config; weapon tray
 
 User report on ws28: movement, cover, squad following and enemy spawns work,
 mouse wheel switches Lancer/Gnasher, but nothing fires, aims or reloads and the
@@ -51,13 +51,46 @@ Private patch 0026-ws-script-diagnostics.patch (source commit 82dce98, tag
 Loader: `GearGame-JudgmentLoader-ws29-functrace.exe`, 59,535,872 bytes, SHA-256
 DD4DF0A72D23AAE64228AA21246963CF894E86DD3935EC1831FE01D34BA37307.
 
-Still open from the same report: the weapon tray and objective icons are blank
-because `GearHUD_Base.DrawWeaponInfo`, `GearHUD_Base.CacheProjectionMatrix`
-and `Canvas.DrawIcon` are natives in Judgment and are stubbed. Equip
-animations still fail (`AGearPawn::BS_Play ... ADD_AR_Equip_Rt on Slot:
+Weapon tray (ws30). The blank HUD was the same kind of gap from the other side:
+Judgment turned Gears 3 script functions into natives, and unbound natives are
+consumed as no-ops. Private patch 0027-ws-hud-weapon-natives.patch (source
+commit 6a53e0c, tag `ws30-hud-natives`):
+
+- `FJudgExtraNatives` (JudgmentLoadDiag.h): a file-scope static object in any
+  .cpp registers a table of port-written natives for one script class;
+  `UFunction::Bind` consults it when the generated lookup has no match and logs
+  `[JUDGBIND][EXTRA]`. Entries are named like the generated tables
+  (`AGearHUD_BaseexecDrawWeaponInfo`). No generated header is touched, so the
+  rebuild stays under a minute.
+- `Canvas.DrawIcon`; `GearHUD_Base.DrawWeaponInfo`, `DrawWeaponIcon`,
+  `DrawAmmo`, `DrawSuperAmmo`, `DrawEmptyAmmo`, `SetWeaponSelectColor`. These are
+  ports of the Gears 3 script bodies. They have not been compared with the
+  Xbox code; Judgment's `DrawWeaponInfo` has one extra parameter, `bShowAmmo`,
+  assumed to default to true, and the MP special-icon branch is left out.
+- `GearWeapon.GetWeaponControllerForDamage` returns `GetWeaponController()`.
+  Before, shots dealt damage with a None controller. The Xbox version probably
+  differs for deployables and turrets.
+- Console command `JUDGFUNCS <Class|*> [UNBOUND]` lists loaded functions with
+  signature and binding. `JUDGFUNCS * UNBOUND` gives 330 unbound natives across
+  loaded classes (saved as `_judgment-scratch\judgfuncs-20261003.txt`; some
+  classes appear twice). Largest groups: GearPawn_LocustShibbolethBase 34,
+  AIDebugTool 25, ETQSystem 19, AIDLogger 16, GoalPoint 15, AISpawnManager 14,
+  AILayer_HvB 13, GearAI 9.
+
+Run `interactive-20261003-37`: capture `20261003-37-ws30-hud-t43.png` shows the
+Lancer icon with the 240 count and ammo bar and the Gnasher, grenade and pistol
+slots. Loader: `GearGame-JudgmentLoader-ws30-hud-natives.exe`, 59,550,208
+bytes, SHA-256
+F1D10DFDC6E830C4F66321F5450121DA27F37DC32BB607C1B88CC5B217B959EC.
+
+Still open: `GearHUD_Base.CacheProjectionMatrix` and `ProjectOnScreen` are
+unbound (world-anchored HUD markers), as are `GearPawn.GetEyePosition`,
+`AllowsRoadieRunWithAnyWeapon`, `GearGame.NotifyDeathCounters`,
+`GearGRI.ShouldBeVisibleInTaccom` and the AudioDevice sound-mode functions.
+Equip animations still fail (`AGearPawn::BS_Play ... ADD_AR_Equip_Rt on Slot:
 Slot_Layer1`, three per pawn). The 211 `[JUDGBIND][MISSING-NATIVE]` lines are
-classes, not functions; only eight stubbed functions are actually called in a
-five-minute run. Whether squad AI now shoots was not checked.
+classes, not functions. Whether squad AI now shoots, the active-reload bar and
+objective icons were not checked.
 
 ## Session XXXII (2026-10-03): lighting textures recovered, level materials rebuilt
 
