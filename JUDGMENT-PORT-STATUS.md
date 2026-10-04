@@ -88,11 +88,23 @@ what leads to an op, what enables an event):
 - The level keeps its designers' console events: `ce JTend` fires "Prepare Next
   Level", `ce CoopDoor1` enables the co-op door; also `JT01`, `ceilingformers`,
   `gotoplayer` (`getall SeqEvent_Console ConsoleEventName`).
-- `ce JTend` starts loading `SP_E2oilrig_P` and dies in
-  `TArray<FVert>::BulkSerialize` under `UModel::Serialize` ("Expected 24, Got:
-  16"): the package is not in `-JUDGMENTSTREAMINGPACKAGES`, so the Judgment BSP
-  vertex stride is not applied to it. The oilrig packages have to be in that
-  list before the transition can be tested.
+- The second map loads. With the oilrig packages outside
+  `-JUDGMENTSTREAMINGPACKAGES`, `ce JTend` died in `TArray<FVert>::BulkSerialize`
+  under `UModel::Serialize` ("Expected 24, Got: 16": Gears 3's BSP vertex
+  stride). `run_visible.ps1 -ExtraStreamingPackages SP_E2oilrig_P,SP_E2oilrig_W,
+  SP_E2oilrig_Audio,SP_E2oilrig_01,SP_E2oilrig_01_S,SP_E2oilrig_02,
+  SP_E2oilrig_02_S,SP_E2oilrig_03,SP_E2oilrig_04,SP_E2oilrig_05,
+  SP_E2oilrig_CoopDoor_01` adds them. Then: first door button, `ce JTend`
+  (prepares `SP_E2oilrig_P`), teleport to the lift trigger; `Elevator_Ride`
+  plays, `SeqAct_ChapterComplete` runs its script, `SeqAct_CommitMapChange`
+  commits, and `SP_E2oilrig_P` begins play: `Level_Startup` streams
+  `SP_E2oilrig_W`, `_01`, `_01_S`, `_Audio`, the squad is respawned, objective
+  "Find Any Survivors" (`E2oilrig_OBJ_0`) is set, and the player stands on the
+  rig at (2937, 8742, 3162) with the level rendered
+  (`20261004-s35-08-oilrig-now.png`). A "LOADING" indicator stays on screen
+  (`SeqAct_WaitForLevelsVisible_8` after the streaming finished; not looked at).
+  `SP_E2oilrig_03_S` is still unconverted and will be fatal when the level
+  asks for it.
 
 Open, found this session:
 
