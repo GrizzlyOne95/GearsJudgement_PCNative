@@ -53,10 +53,50 @@ Found and fixed with it:
   `run_visible.ps1` streaming list; 722 and 554 exports load with zero size
   mismatches and the run reaches "Checkpoint02".
 
+Later the same session (loader `GearGame-JudgmentLoader-ws35-ai-runaway-guard.exe`,
+59,560,448 bytes, SHA-256
+3A0040F90CC3E7CAF7D815502EC287265F6670D13CD02AD70FF0351BA2304DFE; tags
+`ws34-gc-context` 5c12663, `ws35-ai-runaway-guard` 1607724; patches 0031, 0032;
+judgment-native 420292f):
+
+- Combat in the level proper. Teleporting to locator 1 (6375, 5910, 281)
+  triggers the AIFactory spawns in SP_E2_02_S (Lambent humans). The player's
+  shots kill, ammo counts down, the kill feed shows "Barrick ... Former", all
+  three squad AIs acquire enemies and path through the building to the fight,
+  and a downed player is revived ("AI: Cole can revive"). A 320 s run ends
+  with every spawn dead and the squad at full health.
+- Crash, not reproduced: run 07 died in
+  `FArchiveRealtimeGC::PerformReachabilityAnalysis` at game time 269.75 after
+  the player fired and a `GearWeap_LocustAssaultRifle` was in play. ws34 logs
+  `[JUDGGC] crash object=... property=...` from the error handler so the next
+  occurrence names the owner. Forced `obj gc` during and after later fights
+  did not crash.
+- Hang, seen twice in three runs about 35 s into that fight: main thread
+  spinning in `UGameAICommand::ProcessState -> execJumpIfNot ->
+  execVirtualFunction -> ProcessInternal` (one script function looping; this
+  build has no runaway guard). ws35 bounds `UObject::ProcessInternal` at
+  2,000,000 steps (20,000 once a function has been caught), logs
+  `[JUDGRUNAWAY] function=... object=... offset=...` and leaves the function;
+  AI state code is bounded at 20,000 steps per tick (`[JUDGAI] runaway`). The
+  hang did not recur in the one ws35 run, so the function is still unnamed.
+- Next map. `SP_E2oilrig_*`: 14 of 16 packages convert completely and are
+  staged in `Content\Maps` under their retail names, together with
+  `SP_E2_P_LOC_INT` and `SP_E2_02_S_LOC_INT` (be2le outputs
+  `*.be2le-v1/v2-20261004.le.xxx`, textures `*.textures-v1-20261004.le.xxx`).
+  `DominantPointLightComponent` now uses the light-component tail. Blocked:
+  `SP_E2oilrig_03_S` (7068 converted, 1 partial struct Range, 31 unmodelled
+  tails: 15 Function and 16 property objects, i.e. a script class embedded in
+  the level). None of the oilrig packages is in a streaming list yet and none
+  has been loaded.
+
 Open, seen in play:
 
 - Squad AI stands on top of the player and can box him into a corner
   (seen at 2238, 2383, 331 against a wooden wall).
+- The interior around locator 1 is close to black; not yet checked with
+  `viewmode lightingonly`.
+- Wall button panel renders as a black square with a white disc; one floor
+  decal near (4118, 2518, 171) renders as coloured noise.
 - Light-shaft cone meshes render as bright solid triangles.
 - `fly`/`ghost` cheats do nothing (MSCheatManager).
 - Not converted: `SP_E2_P_LOC_INT`, `SP_E2_02_S_LOC_INT` (dialogue; no crash
