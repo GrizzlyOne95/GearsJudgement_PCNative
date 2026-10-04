@@ -10,6 +10,8 @@ param(
     # e.g. @{ 8 = 'ButtonPress R2'; 10 = 'ButtonRelease R2','getall GearPC bFire' }.
     [hashtable]$TimedExec = @{},
     [double]$Scale = 0.6,
+    # Launch and return at once, leaving the game running for hands-on play (no capture, no stop).
+    [switch]$KeepRunning,
     [string]$OutDir = 'C:\Games\_judgment-scratch\captures'
 )
 $ErrorActionPreference = 'Stop'
@@ -20,7 +22,7 @@ if (-not (Test-Path -LiteralPath $exePath -PathType Leaf)) { throw "Missing load
 if ($Tag -notmatch '^[A-Za-z0-9._-]+$') { throw 'Invalid tag.' }
 $log = Join-Path $ws "GearGame\Logs\interactive-$Tag-sp_e2_p.log"
 if (Test-Path -LiteralPath $log) { throw "Refusing to overwrite existing log: $log" }
-$a = 'Judgment_SP_E2_P?game=geargamecontent.GearGameAID?listen -user -NOHOMEDIR -JUDGMENTPKGVER=845 -forcelogflush -unattended -nopause -nosound -NoTextureStreaming -d3d9 -windowed -ResX=1280 -ResY=720 -JUDGWINDOWRESOLUTION -JUDGPROTOTRACE -JUDGSEQUENCETRACE -JUDGAIACCESSORS -JUDGAIDIRECTORINIT -JUDGFSMCORE -JUDGFSMSELFTEST -JUDGMENTSTREAMINGPACKAGES=SP_E2_01,SP_E2_02,SP_E2_W,SP_E2_01_S,SP_E2_Audio,SP_E2_02_S,COG_Baird_Jack -JUDGNATIVEBINDOK -JUDGLIFE -JUDGPRELOADTRACE'
+$a = 'Judgment_SP_E2_P?game=geargamecontent.GearGameAID?listen -user -NOHOMEDIR -JUDGMENTPKGVER=845 -forcelogflush -unattended -nopause -nosound -NoTextureStreaming -d3d9 -windowed -ResX=1280 -ResY=720 -JUDGWINDOWRESOLUTION -JUDGPROTOTRACE -JUDGSEQUENCETRACE -JUDGAIACCESSORS -JUDGAIDIRECTORINIT -JUDGFSMCORE -JUDGFSMSELFTEST -JUDGMENTSTREAMINGPACKAGES=SP_E2_01,SP_E2_02,SP_E2_W,SP_E2_01_S,SP_E2_Audio,SP_E2_02_S,SP_E2_03_S,SP_E2_CoopDoor_01,COG_Baird_Jack -JUDGNATIVEBINDOK -JUDGLIFE -JUDGPRELOADTRACE'
 if ($ExecLines.Count) {
     # ULocalPlayer::ExecMacro resolves bare names to ..\..\Binaries\<name> (workspace Binaries).
     $execName = "judgexec-$Tag.txt"
@@ -39,6 +41,7 @@ if ($ExtraArgs) { $a += " $ExtraArgs" }
 $a += " -ABSLOG=`"$log`""
 $p = Start-Process -FilePath $exePath -ArgumentList $a -WorkingDirectory $bin -PassThru
 "launched pid=$($p.Id) tag=$Tag"
+if ($KeepRunning) { "log=$log"; return }
 $timer = [Diagnostics.Stopwatch]::StartNew()
 $shots = @()
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null

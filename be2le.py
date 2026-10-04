@@ -1043,6 +1043,29 @@ class Converter:
         # Trailing 1-3 bytes are byte-oriented (e.g., FColor, BYTE) - no swap needed, but still need to account for them
         return end
 
+    def tail_morph_target(self, off, end):
+        """UMorphTarget: TArray<FMorphTargetLODModel> (delta, packed normal, index per vertex; base count)."""
+        from native_reader import BoundedNativeWalker, NativeLayoutError
+        walker = BoundedNativeWalker(self, off, end)
+        def lod():
+            walker.fixed_array([4, 4, 4, 4, 4])  # FVector PositionDelta, FPackedNormal, DWORD SourceIdx
+            walker.fields([4])  # NumBaseMeshVerts
+        try:
+            walker.array(lod, 8)
+        except NativeLayoutError:
+            return None
+        return walker.pos
+
+    def tail_morph_target_set(self, off, end):
+        """UMorphTargetSet: TArray<TArray<DWORD>> RawWedgePointIndices (emptied by the cooker)."""
+        from native_reader import BoundedNativeWalker, NativeLayoutError
+        walker = BoundedNativeWalker(self, off, end)
+        try:
+            walker.array(lambda: walker.fixed_array([4]), 4)
+        except NativeLayoutError:
+            return None
+        return walker.pos
+
     def tail_single_int(self, off, end):
         """Convert an exact one-INT native tail (empty container count or object reference)."""
         if end - off != 4:
@@ -1053,6 +1076,7 @@ class Converter:
                     "NavigationMeshBase": "tail_navigation", "Pylon": "tail_pylon",
                     "CombatZone": "tail_combat_zone", "AnimSequence": "tail_animation",
                     "SkeletalMesh": "tail_skeletalmesh",
+                    "MorphTarget": "tail_morph_target", "MorphTargetSet": "tail_morph_target_set",
                     "FaceFXAnimSet": "tail_facefx", "FaceFXAsset": "tail_facefx",
                     "Material": "tail_material",
                     "DecalMaterial": "tail_material", "StaticMesh": "tail_static_mesh",
