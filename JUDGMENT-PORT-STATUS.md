@@ -1,5 +1,68 @@
 # Judgment native-port - build-tree status
 
+## Session XXXIV (2026-10-04): lit view fixed, remote play test, first door passes
+
+Current loader: `GearGame-JudgmentLoader-ws33-quiet-ailog.exe`, 59,556,864
+bytes, SHA-256 82D90FF79E16381DE7757ED5FB4FFFB9E7DF8B2C5E63704E358E23EDDBC9F054.
+Source tags `ws31-remote-input` (77cdd3e), `ws32-hud-projection` (f571eb2),
+`ws33-quiet-ailog` (fbc9c69); private patches 0028 to 0030. judgment-native
+0bf2558 and 359e864.
+
+Lit view. The black floor with green and purple patches was four SP_E2_01
+lighting textures (`DirectionalMaxComponent0_2`, `NormalizedAverageColor0_2`,
+two shadow maps) still holding raw Xbox bytes. Their mips are all inline, so
+they have no TextureFileCacheName, and the probe demanded one whenever the
+cache argument was a directory. Fixed in the probe; SP_E2_01 now recovers
+192/192 light maps and 100/100 shadow maps
+(`SP_E2_01.textures-v3-20261004.le.xxx`, staged). Lighting-only and lit
+captures are clean: `20261004-01-ws30-lm-v3-lightingonly-t80.png`,
+`20261004-02-ws30-lm-v3-lit-t80.png`.
+
+Remote play test. `-JUDGREMOTE=<file>` (UnGame.cpp, `JudgTickRemoteInput`)
+polls a command file: `key <Key> down|up`, `hold <Key> <seconds>`,
+`axis <Key> <rate per second> <seconds>`, `teleport <X> <Y> <Z>`, anything else
+is a console command. Input goes through the game viewport, so bindings apply
+and the window needs no focus. `judgment-native\remote.ps1` sends lines, waits
+and captures; `remote_goto.ps1` steers toward a world position (straight line
+only); `run_visible.ps1 -KeepRunning` leaves the game up. MouseX turns
+48.66 yaw units per count. The desktop-control tool cannot attach to the
+loader (the exe is not a registered application), which is why this exists.
+
+Found and fixed with it:
+
+- Objective text showed `?INT?level_objectives.Objectives.E2_OBJ_1?`. The
+  workspace had Gears 3 text. `install_judgment_loc.py` merges Judgment's 86
+  INT files from the extracted coalesced tree over the workspace files
+  (Judgment keys first, Gears 3-only keys kept; originals in
+  `_judgment-scratch\loc-backup-20261004-gears3`). The objective now reads
+  "Make your way to the Rooftop lift."
+- `GearHUD_Base.CacheProjectionMatrix` and `ProjectOnScreen` are port-written
+  natives (GearGame.cpp, same registry as the weapon tray). The objective star
+  is now anchored in the world.
+- `GearAI.AILog_Internal` calls `AISystem.GetAIDebugTool()`, which is None in
+  a shipping game; the resulting "Accessed None" (about 18 per frame) is
+  silenced for that function only (UnCorSc.cpp).
+- Pressing the first door button (locator 0 at 3529, 2463, 193; X button)
+  runs its Kismet correctly (SetMaterial, matinee, objective 1 completed,
+  objective 3 added) and then streams SP_E2_03_S and SP_E2_CoopDoor_01. Both
+  were unconverted, which is fatal ("Couldn't find file for package ...
+  requested by async loading code"). be2le now models MorphTarget and
+  MorphTargetSet tails and AnimSequence streams in the constant and variable
+  key formats (`AnimEncodingLegacyBase::ByteSwapIn` order); SP_E2_03_S converts
+  788/788 and SP_E2_CoopDoor_01 735/735. Both are staged and in the
+  `run_visible.ps1` streaming list; 722 and 554 exports load with zero size
+  mismatches and the run reaches "Checkpoint02".
+
+Open, seen in play:
+
+- Squad AI stands on top of the player and can box him into a corner
+  (seen at 2238, 2383, 331 against a wooden wall).
+- Light-shaft cone meshes render as bright solid triangles.
+- `fly`/`ghost` cheats do nothing (MSCheatManager).
+- Not converted: `SP_E2_P_LOC_INT`, `SP_E2_02_S_LOC_INT` (dialogue; no crash
+  so far with `-nosound`), all `SP_E2oilrig_*` (12 packages and 4 LOC).
+- `run_loader_regressions.ps1` still lists the old streaming set.
+
 ## Session XXXIII (2026-10-03): combat works; Judgment gameplay config; weapon tray
 
 User report on ws28: movement, cover, squad following and enemy spawns work,
