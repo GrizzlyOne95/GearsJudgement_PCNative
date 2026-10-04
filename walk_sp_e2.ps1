@@ -6,11 +6,15 @@
 # start from here.
 #   ./run_visible.ps1 -Tag <t> -Exe <loader> -KeepRunning -ExtraArgs '-JUDGREMOTE=C:\Games\_judgment-scratch\remote\cmd.txt'
 #   ./walk_sp_e2.ps1                 # waits for the map, walks, returns when the door is enabled
+#   ./walk_sp_e2.ps1 -Engage         # ...then opens it: cinematic, Checkpoint_3, PrepareMapChange to SP_E2oilrig_P
 # Trigger volume centres are the brush bounds (getall BrushComponent Bounds), not the actor pivots.
 param(
     [int]$BootSeconds = 60,
     [int]$WaveTimeoutSeconds = 240,
-    [switch]$NoGodMode
+    [switch]$NoGodMode,
+    # Walk onto the door handle and press X: plays the co-op door cinematic, saves Checkpoint03 and
+    # prepares SP_E2oilrig_P (its packages must be in the streaming list; run_visible.ps1 has them).
+    [switch]$Engage
 )
 $ErrorActionPreference = 'Stop'
 $remote = Join-Path $PSScriptRoot 'remote.ps1'
@@ -26,14 +30,17 @@ function Query([string]$Command) {
     Get-Content -LiteralPath $log | Select-Object -Skip $before | Where-Object { $_ -match '\] Log: \d+\) ' }
 }
 
-function Wait-FormersDead([string]$Stage) {
+# Waits for the level's own verdict (FormersAllDead enables both engage events), not a Former count:
+# the last waves can spawn after the squad arrives, so a count of 0 right then means nothing.
+function Wait-DoorEnabled([string]$Stage) {
     $deadline = [DateTime]::Now.AddSeconds($WaveTimeoutSeconds)
     while ([DateTime]::Now -lt $deadline) {
-        $alive = @(Query 'getall GearPawn_LambentHuman Health').Count
-        if ($alive -eq 0) { "${Stage}: all Formers dead"; return }
+        $enabled = @(Query 'getall SeqEvt_Engage bEnabled') -match 'True'
+        if ($enabled.Count -ge 2) { "${Stage}: door enabled"; return }
         Start-Sleep -Seconds 5
     }
-    "${Stage}: $alive Former(s) still alive after $WaveTimeoutSeconds s (stuck behind a wall? teleport next to one and hold B)"
+    $alive = @(Query 'getall GearPawn_LambentHuman Health').Count
+    "${Stage}: door still disabled after $WaveTimeoutSeconds s, $alive Former(s) alive (stuck behind a wall? teleport next to one and hold B)"
 }
 
 Start-Sleep -Seconds $BootSeconds
@@ -52,9 +59,16 @@ Send 'teleport 6375 5910 380' 12000     # TriggerVolume_0: the main fight (its c
 Send 'teleport 3712 5120 228' 10000     # TriggerVolume_3: last two waves
 # Stand with the squad at the end of the route so the waves come to them.
 Send 'teleport 2900 5290 228' 5000
-Wait-FormersDead 'office floor'
-
-$enabled = @(Query 'getall SeqEvt_Engage bEnabled') -match 'True'
-"co-op door engage events enabled: $($enabled.Count) of 2"
+Wait-DoorEnabled 'office floor'
 Send 'teleport 2700 5290 228' 2000
 "at the co-op door (Trigger_Engage_23 at 2626,5242; _24 at 2626,5002)"
+if (-not $Engage) { return }
+# The squad parks on the route's last node and its rear formation slots end up on the handles, so
+# GSM_EngageStart (a 32-unit sweep from the player to the engage point must hit no other Pawn)
+# refuses X from where the teleport leaves the player. Walking onto the handle bumps the AI, which
+# steps aside as in normal play. X is the ButtonPress command, not a 'key X' line.
+& (Join-Path $PSScriptRoot 'remote_goto.ps1') -X 2645 -Y 5190 -Steps 4 -StepSeconds 1.5 -Arrive 20 | Select-Object -Last 1
+Send 'ButtonPress X' 300
+Send 'ButtonRelease X' 3000
+$move = @(Query 'getall GearPawn SpecialMove') -match 'BairdJack'
+"after X: $($move -replace '^.*SpecialMove = ', 'player special move ')"
