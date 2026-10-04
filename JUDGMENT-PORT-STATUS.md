@@ -89,6 +89,36 @@ judgment-native 420292f):
   the level). None of the oilrig packages is in a streaming list yet and none
   has been loaded.
 
+End of session (loader `GearGame-JudgmentLoader-ws37-playerinfo-layout.exe`,
+59,561,472 bytes, SHA-256
+A258D5872C24F408626D9B571359D3DD5CF546732342E4D7F1B54D8FC5BFC102; tags
+`ws36-judgprops` 4f25adc, `ws37-playerinfo-layout` 1783648; patches 0033, 0034;
+judgment-native 92924f3):
+
+- The garbage collection crash is found and fixed. ws34 reported
+  `[JUDGGC] crash object=GearSquad_1 ... property=GearSquad:EnemyList`. The
+  workspace's regenerated `GearGameAIClasses.h` declared `FPlayerInfo` with
+  the members of two unrelated UI structs of the same name merged in front
+  (184 bytes); Gears 3's header and Judgment's script both have 48. Native
+  squad code filled `EnemyList` at the wrong stride. Restored to the nine
+  script members. ws37 survives six forced `obj gc` during the fight.
+- New console command `JUDGPROPS <Struct|Class|*>` prints the script-linked
+  layout. `judgment-native\audit_native_layouts.py <dump> <Development\Src>`
+  compares every `*Classes.h` struct and class with it by member names:
+  2340 compared, 12 differ after the fix, none on the combat path
+  (`AGearPawn_Chicken_Base` has 19 members script lacks; `FPlaylist` lacks
+  `ContentIdsEx`, `MapsToSkip`; `UAIVisibilityManager` four line-check list
+  members; the rest are static members, interface vtables, PC or editor
+  classes). Dump and report: `_judgment-scratch\judgprops-all-20261004.txt`,
+  `native-layout-audit-20261004.txt`. The audit checks names and order, not
+  types or sizes.
+- The hang is named, not fixed. ws35 logged, on two runs,
+  `[JUDGRUNAWAY] function=GearGame.AICmd_Move_Run2Cover:Command_SpecialMove.ExecuteSpecialMove
+  ... offset=648` and `AICmd_Move_Mantle:Resumed ... offset=274`, both on
+  `GearAI_Gus_0`. The guard makes the game carry on; the loops themselves
+  have not been disassembled yet (`JUDGDISASM ExecuteSpecialMove
+  AICmd_Move_Run2Cover`).
+
 Open, seen in play:
 
 - Squad AI stands on top of the player and can box him into a corner
