@@ -6,6 +6,9 @@ param(
     [int[]]$CaptureAt = @(55),
     [string]$Exe = 'GearGame-JudgmentLoader-ws24-resident-textures.exe',
     [string]$ExtraArgs = '',
+    # World-time seconds -> console command line(s), run by the loader's -JUDGEXECAT (ws29+),
+    # e.g. @{ 8 = 'ButtonPress R2'; 10 = 'ButtonRelease R2','getall GearPC bFire' }.
+    [hashtable]$TimedExec = @{},
     [double]$Scale = 0.6,
     [string]$OutDir = 'C:\Games\_judgment-scratch\captures'
 )
@@ -23,6 +26,14 @@ if ($ExecLines.Count) {
     $execName = "judgexec-$Tag.txt"
     Set-Content -LiteralPath (Join-Path $ws "Binaries\$execName") -Value $ExecLines -Encoding Ascii
     $a += " -EXEC=$execName"
+}
+if ($TimedExec.Count) {
+    $timed = foreach ($t in ($TimedExec.Keys | Sort-Object { [double]$_ })) {
+        $timedName = "judgexec-$Tag-t$t.txt"
+        Set-Content -LiteralPath (Join-Path $ws "Binaries\$timedName") -Value $TimedExec[$t] -Encoding Ascii
+        "${t}:$timedName"
+    }
+    $a += " -JUDGEXECAT=$($timed -join ',')"
 }
 if ($ExtraArgs) { $a += " $ExtraArgs" }
 $a += " -ABSLOG=`"$log`""
