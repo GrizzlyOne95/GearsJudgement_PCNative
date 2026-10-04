@@ -1,5 +1,100 @@
 # Judgment native-port - build-tree status
 
+## Session XXXIII (2026-10-03): combat works; Judgment gameplay config installed
+
+User report on ws28: movement, cover, squad following and enemy spawns work,
+mouse wheel switches Lancer/Gnasher, but nothing fires, aims or reloads and the
+HUD shows no weapon icons. After this session the user confirmed combat works.
+
+Cause: the workspace ran on the Gears 3 PC config. Judgment's
+`GearWeapon.TimeWeaponEquipping` ends with
+`SetTimer(GearEquipTime, FALSE, 'WeaponEquipped')`, and `GearEquipTime` (new in
+Judgment, config) was 0, so the timer was never armed and every weapon, player
+and squad alike, stayed in state `WeaponEquipping`. Input was never the
+problem: `ButtonPress R2` reached `HandleButtonInput_RightTrigger`, `bFire`
+became 1 and `IsControllerFireInputPressed` returned True while
+`CanFireWeapon` returned False.
+
+Fix: Judgment's own config. `judgment-native\coalesced_extract.py` unpacks the
+Xbox `Coalesced_INT.bin` (big-endian counts, ANSI or UTF-16LE strings; 109
+files, 4038 sections, 30674 pairs) into
+`_judgment-scratch\judgment-coalesced-int`. `install_judgment_config.py`
+replaces `Default<Name>.ini` with the extracted `Gear<Name>.ini` and deletes the
+generated copy so the engine regenerates it. Installed: Weapon, Pawn, AI,
+Camera (config repo commit 5f04ec2; Gears 3 originals in
+`_judgment-scratch\config-backup-20261003-gears3`). Not installed yet:
+`Xbox360-GearGame.ini`, `-GearInput.ini`, `-GearUI.ini`, `-GearEngine.ini`,
+GearAward, GearPlaylist and the MP/FFA variants. Any other Judgment-only config
+key in those files still reads as zero.
+
+Verified by scripted run `interactive-20261003-34/35`: `WeaponEquipped` timer
+set with rate 0.25 and fired, weapon state Active, 12 traced `FireAmmunition`
+calls, `SetTargetingMode True` with the over-the-shoulder camera and crosshair
+(capture `20261003-35-ws29-jconfig-pawn-ai-cam-t48.png`), `ForceReload` enters
+state Reloading. No `Critical` lines.
+
+Private patch 0026-ws-script-diagnostics.patch (source commit 82dce98, tag
+`ws29-functrace`), no behaviour change unless used:
+
+- `-JUDGFUNCTRACE=Name1,Name2,...` logs calls of the named functions in any
+  class (`[JUDGFUNC]`): parameters for script functions and events, scalar
+  results, object, state, and `timer-set` / `timer-fire` / `timer-removed` for
+  timers with those names. Lines are written on return, so callees precede
+  callers. Repeats are throttled unless parameters or result change.
+- `-JUDGEXECAT=<worldSeconds>:<file>,...` runs exec files through the first
+  local player at that world time. `run_visible.ps1 -TimedExec @{ 10 =
+  'ButtonPress R2'; 13 = 'ButtonRelease R2' }` writes the files. World time is
+  about 29 s behind the capture clock on a warm run.
+- Console command `JUDGDISASM <Function> [Class]` logs the loaded bytecode
+  token by token (`[JUDGDISASM]`), with property, function and native names.
+
+Loader: `GearGame-JudgmentLoader-ws29-functrace.exe`, 59,535,872 bytes, SHA-256
+DD4DF0A72D23AAE64228AA21246963CF894E86DD3935EC1831FE01D34BA37307.
+
+Still open from the same report: the weapon tray and objective icons are blank
+because `GearHUD_Base.DrawWeaponInfo`, `GearHUD_Base.CacheProjectionMatrix`
+and `Canvas.DrawIcon` are natives in Judgment and are stubbed. Equip
+animations still fail (`AGearPawn::BS_Play ... ADD_AR_Equip_Rt on Slot:
+Slot_Layer1`, three per pawn). The 211 `[JUDGBIND][MISSING-NATIVE]` lines are
+classes, not functions; only eight stubbed functions are actually called in a
+five-minute run. Whether squad AI now shoots was not checked.
+
+## Session XXXII (2026-10-03): lighting textures recovered, level materials rebuilt
+
+LightMapTexture2D and ShadowMapTexture2D pixels are recovered
+(judgment-native 8ff5170): the probe and writer accept both classes, lightmaps
+keep their 4-byte LightmapFlags trailer, shadow maps have none, and
+OriginalSizeX/Y are optional. SP_E2 level packages load with no
+corrupt-texture errors.
+
+Black walls and floors were not missing shaders. The Xbox cooker stripped
+every non-parameter material expression; retained StaticSwitch and
+ComponentMask parameters have dead inputs. Private patch
+0025-ws-material-graph-synthesis.patch (source commit 9e70a79, tag
+`ws28-material-synth`) rebuilds a minimal graph at load in
+`Engine\Src\Material.cpp` (`JudgmentSynthesizeMaterialGraph`): color and normal
+from retained texture parameters or the cooked texture list by name score,
+alpha to opacity or mask, vertex color for particles and translucent meshes,
+Custom lighting to Phong, broken inputs disconnected. The resource Id is the
+cooked Id xor a hash of the rebuilt graph, so only changed materials recompile.
+129 materials rebuilt, 2 kept, zero "Failed to compile". Kill switches
+`-JUDGNOMATERIALSYNTH`, `-JUDGMATERIALSYNTHNONORMALS`; log tag `[JUDGMATSYNTH]`.
+Loader `GearGame-JudgmentLoader-ws28-material-synth.exe`.
+
+The first run after a graph change compiles shaders for up to about 4.5
+minutes; warm runs load in about 40 s (`LocalShaderCache-PC-D3D-SM3.upk` is
+saved on tick).
+
+Open: the lit view is dark. `viewmode lightingonly` is not neutral (interior
+walls near black, floor black with green and purple patches, capture
+`20261003-22-ws28-lightingonly-t80.png`), which points at lightmap data or
+scale vectors rather than the rebuilt normals. With fog and post-processing off
+the scene is readable but the floor patches remain
+(`20261003-23-ws28-lit-nofog-nopp-t80.png`). Other oddities: blue band on
+`LD_E4_Jack_Assets.Materials.M_Wire_01`, an opaque grey gradient sphere outside
+the start building, `WorldSpace` materials using mesh UVs, sky using a
+default-diffuse parameter.
+
 ## Session XXXI (2026-10-03): first interactive run, color grading, level textures
 
 First visible, hands-on run (ws23, 1280x720 on a 2560x1440 desktop). Verified by
