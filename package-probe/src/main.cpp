@@ -3256,8 +3256,14 @@ int convertTextureFixture(const fs::path& input, std::size_t requestedExport,
     // and CharTextures), so the texture's own TextureFileCacheName selects one.
     // A directory argument resolves "<name>.tfc" inside it; an explicit file
     // path is still honoured as-is.
+    // A texture whose mips are all inline (small or never-streamed light and
+    // shadow maps) has no cache name and needs none.
+    const bool anyExternalMip = std::any_of(sourceMips.begin(), sourceMips.end(),
+        [](const Texture2DMipAnalysis& mip) {
+          return (mip.bulkData.flags & 0x1) != 0 && mip.bulkData.elementCount > 0;
+        });
     fs::path resolvedCache = textureCache;
-    if (fs::is_directory(textureCache)) {
+    if (anyExternalMip && fs::is_directory(textureCache)) {
       if (cacheNameProperty == nullptr || !cacheNameProperty->hasNameValue) {
         throw ParseError("texture has external mips but no TextureFileCacheName to resolve");
       }
