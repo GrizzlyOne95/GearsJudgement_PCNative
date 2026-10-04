@@ -1,5 +1,119 @@
 # Judgment native-port - build-tree status
 
+## Session XXXV (2026-10-04): AI hang fixed at the root, SP_E2 walked to the co-op door
+
+Current loader: `GearGame-JudgmentLoader-ws40-functrace-linecheck.exe`,
+59,568,128 bytes, SHA-256
+4A7D4AC7EF6E64F44645AF45B6418EED3C0C05FADE513B80B699D3B03BA1EE4E. Source tags
+`ws38-native-parm-guard` (f040aa1), `ws39-xref-no-ime` (39a91e5),
+`ws40-functrace-linecheck` (0b8ac5b); private patches 0035 to 0037.
+judgment-native 45490b4.
+
+The AI "runaway" (ws35 guard: `AICmd_Move_Run2Cover...ExecuteSpecialMove`
+offset 648, `AICmd_Move_Mantle:Resumed` offset 274) was not a script loop. Both
+offsets are the byte after a call to `CoverLink.IsValidClaim`. Judgment's
+bytecode passes five parameters (`bSkipClaimAllSlotsTest` is new); the thunk,
+compiled from Gears 3's declaration, read four. `P_FINISH` then stepped over
+the fifth argument instead of `EX_EndFunctionParms`, and the caller executed
+that token as a statement, which backs the code pointer up and never advances.
+The same call in `GearPC` (player taking cover) would have misparsed its
+condition.
+
+- `judgment-native\audit_native_thunks.py <JUDGFUNCS * dump> <Development\Src>`
+  compares every bound native's script parameter list with the `P_GET_` macros
+  of its thunk: 2826 bound natives, 2615 matched to a thunk. Five read one
+  parameter fewer than passed (`CoverLink.IsValidClaim`,
+  `GamePlayerController.ClientPlayMovie`, `GearDestructibleObject.DamageSubObject`,
+  `GearSpecialMove.GetSpeedModifier`, `Sequence.FindSeqObjectsByName`) and one
+  read a 4-byte struct as a byte (`PrimitiveComponent.SetRBCollisionChannels`,
+  which also zeroed the channels). All six are fixed; the audit now reports
+  none. The 211 natives it cannot match are the ones the port wrote itself.
+  Dump and report: `_judgment-scratch\judgfuncs-all-20261004.txt`,
+  `native-thunk-audit-20261004.txt`.
+- ws38 also checks at run time: `UObject::CallFunction` verifies a native
+  stopped just past `EX_EndFunctionParms`; if not, it walks the rest of the
+  list without executing it, corrects the code pointer and logs
+  `[JUDGNATIVE] short parameter read function=...` once per function. No such
+  line and no `[JUDGRUNAWAY]` in three fights since.
+- Crash with no log (exception 0xc000041d, fault in `CTSF::BeginUIElement`):
+  the Scaleform IME manager's Text Services sink runs when Windows opens an
+  input UI element for the game window and dereferences an IME movie the port
+  never loads. ws39 creates the manager only with `-JUDGIME`.
+
+Reading Judgment's script (it ships no source):
+
+- `JUDGDISASM <Function> [Class]` (ws39: `JUDGDISASM * <Class>` for a whole
+  class) and `judgment-native\judg_decompile.py <log or dump> [filter]` give
+  pseudo-UnrealScript with statement offsets, built from the token grammar in
+  `ScriptSerialization.h`. `AICmd_Move_Mantle:Resumed` comes out as Gears 3's
+  source plus the three empty optional arguments.
+- `JUDGXREF <Name>` (ws39) lists every function and state whose bytecode refers
+  to a function, property or name.
+- `JUDGFUNCTRACE Name1,Name2` on the console (ws40) switches the function
+  trace while the game runs.
+- `judgment-native\ppc_native.py` lists original natives from the local Xbox
+  image by public symbol with call targets named.
+
+Level walk, SP_E2 in script order (`judgment-native\kismet_graph.py` reads the
+live Kismet out of `getall` dumps: events with trigger positions and counts,
+what leads to an op, what enables an event):
+
+- The near-black office floor was not a rendering fault. Unlit view is correct
+  and SP_E2_02's light maps are all recovered (re-converted: identical output).
+  The room's thirteen `SpotLightToggleable` are driven by the Matinee
+  "Flickering light sequence", which starts when the player enters
+  `TriggerVolume_1`; teleporting to locator 1 skipped it.
+- Trigger volume centres are the brush bounds, not the actor pivots:
+  TV_1 (5632, 2880), TV_2 (5632, 3600; objective 1b), TV_4 (5632, 4352),
+  TV_0 (6304, 5656; the main fight), TV_3 (3712, 5120), all z 228.
+- Squad. SP_E2 has no `GoalPoint` actors and `GearAI.PickGoal` is called only
+  from `Possess`, so the unbound goal natives do not matter here. The player
+  squad follows `GameplayRoute` nodes (`AGearSquad::GetSquadLeaderPosition`,
+  no backward progression); the formation positions are computed and assigned.
+  Teleporting backward leaves the squad on a later node, idle and out of
+  sight of the fight, and teleport catch-up puts them next to the player: the
+  "crowding" of Session XXXIV is mostly a test artifact. With the player and
+  squad together the squad clears a twelve-Former ambush at full health.
+- All ten Former groups dead fires remote event `FormersAllDead`, then
+  `enableCOOPdoor02`; both `SeqEvt_Engage` of `SP_E2_CoopDoor_01` become
+  enabled and objective 4 points at locator 3.
+- Upstairs (teleported): the exterior at (3050, 5251, 715) renders with fog and
+  the ambient Kismet (`SP_E2_03_S` RandomSwitch sounds) runs.
+
+Open, found this session:
+
+- The co-op door does not engage; this is the next blocker. X at
+  `Trigger_Engage_23` runs `GearPC.ServerUse` to its end ("Accessed None
+  'RideablePawn'" at 0A0B is the normal tail). Traced on ws40:
+  `GSM_EngageStart.InternalCanDoSpecialMove` returns False. It sweeps a 32-unit
+  box from the player to the engage point (`TargetPoint_22`, 2641, 5185) and
+  fails if any other Pawn is hit; a trace that starts at a cylinder's centre
+  never reports that cylinder (`UCylinderComponent::LineCheck`). Barrick stands
+  30 units off that line: at the route's last node the formation faces the
+  node's rotation (yaw 0), which puts the "rear" slots on the door. Script and
+  data match Gears 3 and the map, so the difference is native:
+  `SeqAct_CoopEngage` exists only in Judgment and has no C++ here. The original
+  has `Initialize`, `PostLoad`, `OnReceivedImpulse`, `UpdateOp`, `DeActivated`,
+  `InitAIMovement`, `SetupBystanderMeshes`, `ToggleCamera`, `TriggerInteract`,
+  `TriggerInteractEnd`, `GetTotalLoopCountFromTriggers` (about 3.7 KB of code;
+  `ppc_native.py ... '@USeqAct_CoopEngage@@'`). After the door its Kismet fades,
+  plays the Matinee "CINEMATIC - COOP - Chainsaw", teleports the squad to four
+  `PathTargetPoint`s and completes objective 1c.
+- Door kicks work when approached from the script's side. The trigger of the
+  upstairs door (`Trigger_DoorInteraction_5`, 2968, 5251, 768) is inside the
+  building; from there X plays the "Door Kick" Matinee, completes objective 1d
+  and starts `SeqAct_AISquadController_1`. From outside, `GearPawn.Touch`
+  rejects it because `FastTrace` to the trigger hits the door mesh (original
+  `FastTrace` and `AInterpActor::ShouldTrace` are the same as here). Remote
+  `linecheck <start> <end> [extent]` (ws40) shows what a trace hits.
+- `judgment-native\walk_sp_e2.ps1` replays the level in script order up to the
+  co-op door (about four minutes); a Former that never noticed the player has
+  to be fetched by hand.
+- `Divide by zero` in `GearHUD_Base.CalculateRevivePercentAlive` every frame
+  while the player is down (`GetRevivalTime()` returns 0).
+- The script's AI idle message ("has not done anything interesting ... not
+  allowed to delete him") shows on screen.
+
 ## Session XXXIV (2026-10-04): lit view fixed, remote play test, first door passes
 
 Current loader: `GearGame-JudgmentLoader-ws33-quiet-ailog.exe`, 59,556,864
