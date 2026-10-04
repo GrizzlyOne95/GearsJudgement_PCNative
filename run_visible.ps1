@@ -12,6 +12,9 @@ param(
     [double]$Scale = 0.6,
     # Launch and return at once, leaving the game running for hands-on play (no capture, no stop).
     [switch]$KeepRunning,
+    # More packages for -JUDGMENTSTREAMINGPACKAGES (the next map's persistent level and sublevels;
+    # a Judgment package outside the list is read with Gears 3's BSP vertex stride and asserts).
+    [string[]]$ExtraStreamingPackages = @(),
     [string]$OutDir = 'C:\Games\_judgment-scratch\captures'
 )
 $ErrorActionPreference = 'Stop'
@@ -23,6 +26,9 @@ if ($Tag -notmatch '^[A-Za-z0-9._-]+$') { throw 'Invalid tag.' }
 $log = Join-Path $ws "GearGame\Logs\interactive-$Tag-sp_e2_p.log"
 if (Test-Path -LiteralPath $log) { throw "Refusing to overwrite existing log: $log" }
 $a = 'Judgment_SP_E2_P?game=geargamecontent.GearGameAID?listen -user -NOHOMEDIR -JUDGMENTPKGVER=845 -forcelogflush -unattended -nopause -nosound -NoTextureStreaming -d3d9 -windowed -ResX=1280 -ResY=720 -JUDGWINDOWRESOLUTION -JUDGPROTOTRACE -JUDGSEQUENCETRACE -JUDGAIACCESSORS -JUDGAIDIRECTORINIT -JUDGFSMCORE -JUDGFSMSELFTEST -JUDGMENTSTREAMINGPACKAGES=SP_E2_01,SP_E2_02,SP_E2_W,SP_E2_01_S,SP_E2_Audio,SP_E2_02_S,SP_E2_03_S,SP_E2_CoopDoor_01,COG_Baird_Jack -JUDGNATIVEBINDOK -JUDGLIFE -JUDGPRELOADTRACE'
+if ($ExtraStreamingPackages.Count) {
+    $a = $a -replace '(-JUDGMENTSTREAMINGPACKAGES=\S+)', ('$1,' + ($ExtraStreamingPackages -join ','))
+}
 if ($ExecLines.Count) {
     # ULocalPlayer::ExecMacro resolves bare names to ..\..\Binaries\<name> (workspace Binaries).
     $execName = "judgexec-$Tag.txt"
