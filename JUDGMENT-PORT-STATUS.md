@@ -1,5 +1,44 @@
 # Judgment native-port - build-tree status
 
+## Session XXXVI (2026-10-04): co-op door opens; SP_E2 reaches the oilrig map change
+
+- No native was missing. `USeqAct_CoopEngage` is in Gears 3
+  (`GearGameSequence.cpp`: PostLoad, OnReceivedImpulse, UpdateOp, DeActivated,
+  SetupBystanderMeshes, GetTotalLoopCountFromTriggers, Initialize; class in
+  `GearGameSequenceClasses.h`). It was read against the Judgment PPC and they match.
+  The only difference is the spelling `bSingle = PlayerCount == 1` versus
+  `bIsCoop = PlayerCount > 1`. `ATrigger_Engage` already has Judgment's fields.
+  Xbox layout: SeqAct_CoopEngage is 44 bytes smaller (TriggerData Xbox 0xf4 =
+  PC 288). Trigger_Engage tail fields are at PC − 4.
+- Squad placement is also original. `AGearSquad::GetSquadLeaderPosition` and
+  `ARoute::MoveOntoRoutePath`/`ResolveRouteIndex` match the PPC. Judgment
+  only adds `AISystem.bSidekicksDontUseRoute` (player squad follows the pawn).
+  That flag is set only by `SeqAct_SidekicksUsingRoute`, which SP_E2 does not use.
+- Why X was refused: at the route's last node (`GameplayRouteNode_1`, 2792,
+  5286, yaw 0) the rear formation slots are clamped against the door, which puts
+  Barrick about 54 units from the engage point. GSM_EngageStart's pawn sweep hits
+  him. In normal play the player walks to the handle and bumps him, and
+  `AICmd_StepAside` moves him. Teleporting there skips that bump. `remote_goto -X 2645 -Y 5190`
+  reproduces it (Barrick steps to 2804, 5209).
+- Remote input: X is `ButtonPress X` / `ButtonRelease X`. A `key X` line does
+  not reach `ServerUse`.
+- Full flow on ws40: SM_Engage_Start, then SeqEvt_Engage "Started", then CoopEngage
+  "Trigger 1 Active". It completes at once in single player and fires Success.
+  Then the fade, cinematic mode and `SeqAct_Interp_13` (the chainsaw cinematic) run,
+  the squad is teleported, Checkpoint_3 is saved, the objective is updated, and
+  `SeqAct_PrepareMapChange_0` loads `SP_E2oilrig_P`. Its packages must be in
+  `-JUDGMENTSTREAMINGPACKAGES`, or `TArray<FVert>::BulkSerialize` asserts
+  "Expected 24, Got: 16". `run_visible.ps1` now streams the SP_E2oilrig set by
+  default (`SP_E2oilrig_03_S` is not converted yet).
+- `walk_sp_e2.ps1 -Engage` replays the level and opens the door (about seven
+  minutes). It now waits for both `SeqEvt_Engage` to be enabled instead of a
+  Former count: the last waves spawn after the squad arrives, so 0 alive at that
+  moment means nothing.
+- Next: the commit to SP_E2oilrig_P (end-of-level trigger past the door, or
+  `ce JTend`), then the oilrig "LOADING" indicator
+  (`SeqAct_WaitForLevelsVisible_8`) and `SP_E2oilrig_03_S` (be2le
+  UFunction/UProperty export tails).
+
 ## Session XXXV (2026-10-04): AI hang fixed at the root, SP_E2 walked to the co-op door
 
 Current loader: `GearGame-JudgmentLoader-ws40-functrace-linecheck.exe`,
@@ -117,12 +156,10 @@ Open, found this session:
   never reports that cylinder (`UCylinderComponent::LineCheck`). Barrick stands
   30 units off that line: at the route's last node the formation faces the
   node's rotation (yaw 0), which puts the "rear" slots on the door. Script and
-  data match Gears 3 and the map, so the difference is native:
-  `SeqAct_CoopEngage` exists only in Judgment and has no C++ here. The original
-  has `Initialize`, `PostLoad`, `OnReceivedImpulse`, `UpdateOp`, `DeActivated`,
-  `InitAIMovement`, `SetupBystanderMeshes`, `ToggleCamera`, `TriggerInteract`,
-  `TriggerInteractEnd`, `GetTotalLoopCountFromTriggers` (about 3.7 KB of code;
-  `ppc_native.py ... '@USeqAct_CoopEngage@@'`). After the door its Kismet fades,
+  data match Gears 3 and the map. (Corrected in Session XXXVI: this session
+  concluded that `SeqAct_CoopEngage` had no C++ here. It does, in
+  `GearGameSequence.cpp`, and it matches Judgment's PPC; Barrick was the whole
+  problem.) After the door its Kismet fades,
   plays the Matinee "CINEMATIC - COOP - Chainsaw", teleports the squad to four
   `PathTargetPoint`s and completes objective 1c.
 - Door kicks work when approached from the script's side. The trigger of the
