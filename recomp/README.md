@@ -10,7 +10,8 @@ replacement for `scripts/build-judgment-loader.ps1`.
 - Development fork (submodule remote): https://github.com/GrizzlyOne95/gears-judgement-recomp
 - Original upstream: https://github.com/OverkillLabs3/gears-judgement-recomp
 - Submodule: `recomp/gears-judgement-recomp/`
-- Pinned baseline: `c20e7b3db6b56e3529e6df241a9d4e4ab7f0b2ee` (upstream v0.1.0, 2026-10-03); the fork initially shares this exact commit
+- Original game-code baseline: upstream `c20e7b3db6b56e3529e6df241a9d4e4ab7f0b2ee` (v0.1.0, 2026-10-03)
+- Current parent submodule pointer: fork `1368aee74fb0cbde7917e98940ef1dbd538984a9` (adds a source-backed LAN co-op audit; no game/runtime changes)
 - Upstream license: BSD 3-Clause; see the submodule's `LICENSE` and
   `THIRD_PARTY_NOTICES.txt`. The parent repository's MIT license applies to
   our own source, **not** automatically to the separately licensed submodule.
@@ -36,7 +37,7 @@ To verify the pinned code:
 
 ```powershell
 git -C recomp/gears-judgement-recomp rev-parse HEAD
-# Expected: c20e7b3db6b56e3529e6df241a9d4e4ab7f0b2ee
+# Expected: 1368aee74fb0cbde7917e98940ef1dbd538984a9
 ```
 
 ## Prerequisites and build
@@ -78,6 +79,10 @@ The build has **not been run or validated as part of this integration**: the
 retail game executable and external SDK are intentionally not in this repo.
 
 ## Current scope and LAN co-op roadmap
+
+See the fork's [LAN co-op networking audit](gears-judgement-recomp/docs/LAN_COOP_NETWORK_AUDIT.md)
+for the concrete XGI/XNet SDK entry points, instrumentation strategy,
+and two-PC acceptance gates.
 
 The pinned upstream release supports an early-tested **single-player** campaign;
 multiplayer, Xbox Live, LAN co-op, and internet co-op are **not** implemented.

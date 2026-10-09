@@ -93,6 +93,10 @@ git submodule update --init --recursive
 
 See [`recomp/README.md`](recomp/README.md) for prerequisites, build steps,
 licensing, and a realistic roadmap toward two-PC LAN campaign co-op.
+The fork's [LAN co-op source audit](recomp/gears-judgement-recomp/docs/LAN_COOP_NETWORK_AUDIT.md)
+identifies specific session/networking API blockers and test milestones.
+The existing conversion repository's branch reconciliation is recorded in
+[`research/BRANCH-RECONCILIATION-20261009.md`](research/BRANCH-RECONCILIATION-20261009.md).
 **As of the pinned v0.1.0 release, only single-player campaign functionality
 is supported; LAN/online co-op is not implemented.** No retail executable or
 game assets are included in this repository or submodule.
