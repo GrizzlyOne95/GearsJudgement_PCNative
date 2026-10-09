@@ -1,0 +1,3 @@
+[submodule "recomp/gears-judgement-recomp"]
+	path = recomp/gears-judgement-recomp
+	url = https://github.com/OverkillLabs3/gears-judgement-recomp.git
