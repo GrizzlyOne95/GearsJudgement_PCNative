@@ -62,3 +62,13 @@ and refuses to overwrite it unless `-Force` is supplied:
 .\scripts\build-judgment-loader.ps1
 .\scripts\build-judgment-loader.ps1 -VersionTag v61-nativecontent
 ```
+
+## Gears 3 Steam campaign co-op
+
+The redistributable source delta and build/test notes for the Steam campaign
+co-op repair are in
+[`patches/gears3-steam-coop`](patches/gears3-steam-coop/README.md). The patch
+restores friend lobbies and invites, routes accepted invites through Gears'
+persistent-party reservation, synchronizes the session state Gears validates,
+validates listen-server advertisement, and blocks late shared-Spacewar
+self-kicks before the host is removed.
