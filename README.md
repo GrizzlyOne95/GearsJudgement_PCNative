@@ -75,17 +75,19 @@ self-kicks before the host is removed.
 
 ## Native Xbox 360 static recompilation (ReXGlue)
 
-The [OverkillLabs3 Gears of War: Judgment recompilation project](https://github.com/OverkillLabs3/gears-judgement-recomp)
-is also tracked under [`recomp/gears-judgement-recomp`](recomp/gears-judgement-recomp)
+Our [Judgment ReXGlue fork](https://github.com/GrizzlyOne95/gears-judgement-recomp)
+(of [OverkillLabs3's original project](https://github.com/OverkillLabs3/gears-judgement-recomp))
+is tracked under [`recomp/gears-judgement-recomp`](recomp/gears-judgement-recomp)
 **as a pinned Git submodule**, rather than vendored source. It is an independent
 Windows x64/DirectX 12 port that statically recompiles the **retail Xbox 360**
 PowerPC executable with ReXGlue and reads the original game content. It does
 not use the v845-debug-build-to-v828-PC package conversion workflow in this
 repository, and it does not replace that work.
 
-Initialize it after cloning (or when updating an existing checkout):
+Initialize it after cloning, or synchronize the new fork URL in an existing checkout:
 
 ```powershell
+git submodule sync --recursive
 git submodule update --init --recursive
 ```
 

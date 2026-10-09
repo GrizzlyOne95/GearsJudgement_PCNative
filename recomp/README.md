@@ -7,9 +7,10 @@ replacement for `scripts/build-judgment-loader.ps1`.
 
 ## Source and provenance
 
-- Upstream: https://github.com/OverkillLabs3/gears-judgement-recomp
+- Development fork (submodule remote): https://github.com/GrizzlyOne95/gears-judgement-recomp
+- Original upstream: https://github.com/OverkillLabs3/gears-judgement-recomp
 - Submodule: `recomp/gears-judgement-recomp/`
-- Initial upstream commit: `c20e7b3db6b56e3529e6df241a9d4e4ab7f0b2ee` (v0.1.0, 2026-10-03)
+- Pinned baseline: `c20e7b3db6b56e3529e6df241a9d4e4ab7f0b2ee` (upstream v0.1.0, 2026-10-03); the fork initially shares this exact commit
 - Upstream license: BSD 3-Clause; see the submodule's `LICENSE` and
   `THIRD_PARTY_NOTICES.txt`. The parent repository's MIT license applies to
   our own source, **not** automatically to the separately licensed submodule.
@@ -19,14 +20,15 @@ replacement for `scripts/build-judgment-loader.ps1`.
 A Git submodule pins a specific upstream commit, preserves upstream history,
 and keeps licensing and future updates distinct. **Do not commit retail game
 files, generated recompiled game code, or extracted game assets.** The
-upstream submodule ignores `game/`, `generated/`, and `out/`.
+submodule ignores `game/`, `generated/`, and `out/`.
 
 ## Clone or initialize
 
 ```powershell
 git clone --recurse-submodules https://github.com/GrizzlyOne95/GearsJudgement_PCNative.git
 cd GearsJudgement_PCNative
-# Existing clones instead run:
+# Existing clones, especially those initialized before the fork URL changed:
+git submodule sync --recursive
 git submodule update --init --recursive
 ```
 
@@ -101,18 +103,20 @@ Suggested development order:
 
 **When modifying the submodule:** changes made in a detached, pinned submodule
 checkout are not automatically committed to this parent repository. Work on a
-named branch in a writable fork of the upstream project; publish those changes
-first, update the parent submodule pointer and (if forked) `.gitmodules`, then
-commit/push the parent change. Avoid drifting away from a reproducible upstream
-baseline without documenting the patches.
+named feature branch in [our fork](https://github.com/GrizzlyOne95/gears-judgement-recomp),
+push it, and merge its changes into the fork's `main` when validated. Then
+update the parent repository's submodule commit pointer and commit/push the
+parent change. Keep [OverkillLabs3 upstream](https://github.com/OverkillLabs3/gears-judgement-recomp)
+as the canonical source for upstream updates and potential contributions.
+Avoid drifting away from a reproducible baseline without documenting patches.
 
 ## Updating the submodule intentionally
 
 ```powershell
 git -C recomp/gears-judgement-recomp fetch origin
-git -C recomp/gears-judgement-recomp checkout <reviewed-commit-sha>
+git -C recomp/gears-judgement-recomp checkout <reviewed-fork-commit-sha>
 git add recomp/gears-judgement-recomp
-git commit -m "chore(recomp): bump pinned Judgment upstream commit"
+git commit -m "chore(recomp): bump pinned Judgment fork commit"
 git push
 ```
 
